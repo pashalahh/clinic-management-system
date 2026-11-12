@@ -1,0 +1,29 @@
+services:
+  # Nama service container database
+  postgres-db:
+    image: postgres:16-alpine
+    container_name: clinic_postgres_container
+    restart: always
+    environment:
+      POSTGRES_USER: ${DB_USERNAME}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ${DB_DATABASE}
+    ports:
+      # Formatnya > PortKomputer:PortServiceContainer
+      - "${DB_PORT}:5432"
+    volumes:
+      # Menyimpan data database agar tidak hilang saat container dihapus
+      - clinic_data_volume:/var/lib/postgresql/data
+
+  # Service container Adminer (Web GUI untuk lihat isi database)
+  adminer:
+    image: adminer:latest
+    container_name: clinic_adminer_container
+    restart: always
+    ports:
+      - "8080:8080"
+    depends_on:
+      - postgres-db
+
+volumes:
+  clinic_data_volume:

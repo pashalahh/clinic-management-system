@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Param, Delete, ParseUUIDPipe, Put } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, Delete, ParseUUIDPipe, Patch } from '@nestjs/common';
 import { DepartemenService } from './departemen.service.js';
 import { CreateDepartemenDto } from './dto/create-departemen.dto.js';
 import { UpdateDepartemenDto } from './dto/update-departemen.dto.js';
@@ -23,7 +23,7 @@ export class DepartemenController {
     return this.departemenService.findOne(id);
   }
 
-  @Put(':id')
+  @Patch(':id')
   update(@Param('id', ParseUUIDPipe) id: string, @Body() dto: UpdateDepartemenDto) {
     return this.departemenService.update(id, dto);
   }

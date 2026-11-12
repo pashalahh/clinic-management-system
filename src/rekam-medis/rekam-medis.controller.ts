@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Param, Delete, Put, ParseUUIDPipe } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, Delete, ParseUUIDPipe, Patch } from '@nestjs/common';
 import { RekamMedisService } from './rekam-medis.service.js';
 import { CreateRekamMedisDto } from './dto/create-rekam-medi.dto.js';
 import { UpdateRekamMedisDto } from './dto/update-rekam-medis.dto.js';
@@ -23,7 +23,7 @@ export class RekamMedisController {
     return this.rekamMedisService.findOne(id);
   }
 
-  @Put(':id')
+  @Patch(':id')
   update(@Param('id', ParseUUIDPipe) id: string, @Body() dto: UpdateRekamMedisDto) {
     return this.rekamMedisService.update(id, dto);
   }

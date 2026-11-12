@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Param, Delete, ParseUUIDPipe, Put } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, Delete, ParseUUIDPipe, Patch } from '@nestjs/common';
 import { JanjiTemuService } from './janji-temu.service.js';
 import { CreateJanjiTemuDto } from './dto/create-janji-temu.dto.js';
 import { UpdateJanjiTemuDto } from './dto/update-janji-temu.dto.js';
@@ -28,7 +28,7 @@ export class JanjiTemuController {
       return this.janjiTemuService.findRekamMedis(id);
     }
 
-    @Put(':id')
+    @Patch(':id')
     update(@Param('id', ParseUUIDPipe) id: string, @Body() dto: UpdateJanjiTemuDto) {
       return this.janjiTemuService.update(id, dto);
     }

@@ -56,17 +56,17 @@ export class JanjiTemuService {
     jadwal: Date,
     kecualiId?: string,
 ): Promise<void> {
-    const kecuali = kecualiId ? Not(kecualiId) : undefined;
+    const kecuali = kecualiId ? { id: Not(kecualiId) } : {};
 
     const bentrokDokter = await this.janjiTemuRepository.findOne({
-      where: { dokterId, jadwal, status: In(STATUS_AKTIF), id: kecuali },
+      where: { dokterId, jadwal, status: In(STATUS_AKTIF), ...kecuali },
     });
     if (bentrokDokter) {
       throw new ConflictException('Dokter sudah memiliki janji temu pada jadwal tersebut');
     }
 
     const bentrokPasien = await this.janjiTemuRepository.findOne({
-      where: { pasienId, jadwal, status: In(STATUS_AKTIF), id: kecuali },
+      where: { pasienId, jadwal, status: In(STATUS_AKTIF), ...kecuali },
     });
     if (bentrokPasien) {
       throw new ConflictException('Pasien sudah memiliki janji temu pada jadwal tersebut');

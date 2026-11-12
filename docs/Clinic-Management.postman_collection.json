@@ -477,7 +477,7 @@
                   "pm.test('Waktu respons < 3000 ms', () => pm.expect(pm.response.responseTime).to.be.below(3000));",
                   "const json = pm.response.json();",
                   "pm.test('Format error: statusCode=400 & ada message', () => { pm.expect(json.statusCode).to.eql(400); pm.expect(json).to.have.property('message'); });",
-                  "pm.test('Field asing ditolak', () => pm.expect(json.message.join(' ')).to.include('should not exist'));"
+                  "pm.test('Field asing ditolak', () => pm.expect([].concat(json.message).join(' ')).to.include('should not exist'));"
                 ]
               }
             }
@@ -1097,7 +1097,7 @@
                   "pm.test('Waktu respons < 3000 ms', () => pm.expect(pm.response.responseTime).to.be.below(3000));",
                   "const json = pm.response.json();",
                   "pm.test('Format error: statusCode=400 & ada message', () => { pm.expect(json.statusCode).to.eql(400); pm.expect(json).to.have.property('message'); });",
-                  "pm.test('Pesan enum', () => pm.expect(json.message.join(' ')).to.include('LAKI_LAKI atau PEREMPUAN'));"
+                  "pm.test('Pesan enum', () => pm.expect([].concat(json.message).join(' ')).to.include('LAKI_LAKI atau PEREMPUAN'));"
                 ]
               }
             }
@@ -2030,7 +2030,7 @@
                   "pm.test('Waktu respons < 3000 ms', () => pm.expect(pm.response.responseTime).to.be.below(3000));",
                   "const json = pm.response.json();",
                   "pm.test('Format error: statusCode=400 & ada message', () => { pm.expect(json.statusCode).to.eql(400); pm.expect(json).to.have.property('message'); });",
-                  "pm.test('tekananDarah ditolak', () => pm.expect(json.message.join(' ')).to.include('tekananDarah should not exist'));"
+                  "pm.test('tekananDarah ditolak', () => pm.expect([].concat(json.message).join(' ')).to.include('tekananDarah should not exist'));"
                 ]
               }
             }
@@ -2380,7 +2380,7 @@
                   "pm.test('Waktu respons < 3000 ms', () => pm.expect(pm.response.responseTime).to.be.below(3000));",
                   "const json = pm.response.json();",
                   "pm.test('Format error: statusCode=400 & ada message', () => { pm.expect(json.statusCode).to.eql(400); pm.expect(json).to.have.property('message'); });",
-                  "pm.test('janjiTemuId ditolak', () => pm.expect(json.message.join(' ')).to.include('should not exist'));"
+                  "pm.test('janjiTemuId ditolak', () => pm.expect([].concat(json.message).join(' ')).to.include('should not exist'));"
                 ]
               }
             }
@@ -2622,7 +2622,7 @@
                   "pm.test('Waktu respons < 3000 ms', () => pm.expect(pm.response.responseTime).to.be.below(3000));",
                   "const json = pm.response.json();",
                   "pm.test('Format error: statusCode=400 & ada message', () => { pm.expect(json.statusCode).to.eql(400); pm.expect(json).to.have.property('message'); });",
-                  "pm.test('Pesan enum status', () => pm.expect(json.message.join(' ')).to.include('Status harus salah satu dari'));"
+                  "pm.test('Pesan enum status', () => pm.expect([].concat(json.message).join(' ')).to.include('Status harus salah satu dari'));"
                 ]
               }
             }
@@ -2669,7 +2669,7 @@
                   "pm.test('Waktu respons < 3000 ms', () => pm.expect(pm.response.responseTime).to.be.below(3000));",
                   "const json = pm.response.json();",
                   "pm.test('Format error: statusCode=400 & ada message', () => { pm.expect(json.statusCode).to.eql(400); pm.expect(json).to.have.property('message'); });",
-                  "pm.test('pasienId ditolak', () => pm.expect(json.message.join(' ')).to.include('should not exist'));"
+                  "pm.test('pasienId ditolak', () => pm.expect([].concat(json.message).join(' ')).to.include('should not exist'));"
                 ]
               }
             }

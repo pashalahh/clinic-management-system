@@ -18,10 +18,10 @@ Backend REST API untuk administrasi klinik: **pasien, dokter, departemen, janji 
 | Dokumen | Lokasi |
 |---------|--------|
 | Source code | `src/` |
-| **ERD** (entitas, atribut, PK, FK, relasi) | [`docs/ERD.md`](docs/ERD.md) · gambar: [`docs/erd.png`](docs/erd.png) |
+| **ERD** (entitas, atribut, PK, FK, relasi) | [`docs/ERD.md`](docs/ERD.md) |
 | **API Specification** (Markdown) | [`docs/API-Specification.md`](docs/API-Specification.md) |
-| **Postman Collection** (bisa diimpor) | [`postman/Clinic-Management.postman_collection.json`](postman/Clinic-Management.postman_collection.json) |
-| Penjelasan skenario Postman | [`postman/Postman-Collection.md`](postman/Postman-Collection.md) |
+| **Postman Collection** (bisa diimpor) | [`docs/Clinic-Management.postman_collection.json`](docs/Clinic-Management.postman_collection.json) |
+| Penjelasan skenario Postman | [`docs/Postman-Collection.md`](docs/Postman-Collection.md) |
 | API Specification (OpenAPI, opsional) | [`docs/openapi.json`](docs/openapi.json) |
 
 ## Instalasi

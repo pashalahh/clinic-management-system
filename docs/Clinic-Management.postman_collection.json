@@ -1,0 +1,3112 @@
+{
+  "info": {
+    "_postman_id": "c1a2b3c4-d5e6-4f70-8a91-b2c3d4e5f607",
+    "name": "Clinic Management System API",
+    "description": "Koleksi pengujian lengkap Clinic Management System (NestJS + TypeORM + PostgreSQL).\n\nJalankan seluruh koleksi secara berurutan dengan Collection Runner. Request pertama membuat data uji unik, request berikutnya memakai ID yang disimpan otomatis, dan folder terakhir membersihkan semua data uji.\n\nPastikan variabel baseUrl menunjuk ke server yang berjalan (default http://localhost:3000).",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "// Membuat data uji unik bila belum ada (supaya NIK, STR, email, dan nama tidak bentrok)",
+          "if (!pm.collectionVariables.get('runId')) {",
+          "  const rnd = (n) => Array.from({ length: n }, () => Math.floor(Math.random() * 10)).join('');",
+          "  const id = rnd(6);",
+          "  const base = Date.now() + 14 * 24 * 3600 * 1000; // 14 hari dari sekarang",
+          "  const set = (k, v) => pm.collectionVariables.set(k, v);",
+          "  set('runId', id);",
+          "  set('namaDepartemen', 'Poli Uji ' + id);",
+          "  set('nik', '3301' + rnd(12));                       // 16 digit",
+          "  set('nomorStr', 'STR-UJI-' + id);",
+          "  set('emailDokter', 'dokter.' + id + '@klinik.example');",
+          "  set('emailDokter2', 'dokter2.' + id + '@klinik.example');",
+          "  set('jadwal1', new Date(base).toISOString());",
+          "  set('jadwal2', new Date(base + 24 * 3600 * 1000).toISOString());",
+          "  set('jadwal3', new Date(base + 2 * 24 * 3600 * 1000).toISOString());",
+          "}"
+        ]
+      }
+    }
+  ],
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:3000",
+      "type": "string"
+    },
+    {
+      "key": "unknownId",
+      "value": "11111111-1111-4111-8111-111111111111",
+      "type": "string"
+    },
+    {
+      "key": "jadwalLalu",
+      "value": "2020-01-01T09:00:00Z",
+      "type": "string"
+    },
+    {
+      "key": "tanggalMasaDepan",
+      "value": "2999-01-01",
+      "type": "string"
+    },
+    {
+      "key": "departemenId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "dokterId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "pasienId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "janjiTemuId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "janjiTemuId2",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "rekamMedisId",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "0. Cek Server",
+      "description": "Memastikan server dan database sudah hidup sebelum pengujian dimulai.",
+      "item": [
+        {
+          "name": "0.1 Cek server hidup",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Request pertama selalu membuat data uji BARU untuk satu putaran pengujian",
+                  "const rnd = (n) => Array.from({ length: n }, () => Math.floor(Math.random() * 10)).join('');",
+                  "const id = rnd(6);",
+                  "const base = Date.now() + 14 * 24 * 3600 * 1000; // 14 hari dari sekarang",
+                  "const set = (k, v) => pm.collectionVariables.set(k, v);",
+                  "set('runId', id);",
+                  "set('namaDepartemen', 'Poli Uji ' + id);",
+                  "set('nik', '3301' + rnd(12));                       // 16 digit",
+                  "set('nomorStr', 'STR-UJI-' + id);",
+                  "set('emailDokter', 'dokter.' + id + '@klinik.example');",
+                  "set('emailDokter2', 'dokter2.' + id + '@klinik.example');",
+                  "set('jadwal1', new Date(base).toISOString());",
+                  "set('jadwal2', new Date(base + 24 * 3600 * 1000).toISOString());",
+                  "set('jadwal3', new Date(base + 2 * 24 * 3600 * 1000).toISOString());"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code = 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Waktu respons < 3000 ms', () => pm.expect(pm.response.responseTime).to.be.below(3000));",
+                  "const json = pm.response.json();",
+                  "pm.test('Format sukses: success=true & statusCode=200', () => { pm.expect(json.success).to.eql(true); pm.expect(json.statusCode).to.eql(200); pm.expect(json).to.have.property('data'); });",
+                  "pm.test('Status aplikasi = berjalan', () => pm.expect(json.data.status).to.eql('berjalan'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": []
+            },
+            "description": "Server menjawab dengan info aplikasi.\n\nHasil yang diharapkan: HTTP 200."
+          }
+        }
+      ]
+    },
+    {
+      "name": "1. Departemen",
+      "description": "CRUD departemen (relasi: 1 departemen punya banyak dokter).",
+      "item": [
+        {
+          "name": "1.1 Tambah departemen",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code = 201', () => pm.response.to.have.status(201));",
+                  "pm.test('Waktu respons < 3000 ms', () => pm.expect(pm.response.responseTime).to.be.below(3000));",
+                  "const json = pm.response.json();",
+                  "pm.test('Format sukses: success=true & statusCode=201', () => { pm.expect(json.success).to.eql(true); pm.expect(json.statusCode).to.eql(201); pm.expect(json).to.have.property('data'); });",
+                  "pm.test('Nama departemen sesuai input', () => pm.expect(json.data.namaDepartemen).to.eql(pm.collectionVariables.get('namaDepartemen')));",
+                  "pm.collectionVariables.set('departemenId', json.data.id);  // disimpan untuk request berikutnya"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/departemen",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "departemen"
+              ]
+            },
+            "description": "Membuat departemen baru. ID disimpan ke variabel departemenId.\n\nHasil yang diharapkan: HTTP 201.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"namaDepartemen\": \"{{namaDepartemen}}\",\n  \"deskripsi\": \"Layanan pemeriksaan kesehatan umum\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "1.2 Tambah departemen - nama kembar",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code = 409', () => pm.response.to.have.status(409));",
+                  "pm.test('Waktu respons < 3000 ms', () => pm.expect(pm.response.responseTime).to.be.below(3000));",
+                  "const json = pm.response.json();",
+                  "pm.test('Format error: statusCode=409 & ada message', () => { pm.expect(json.statusCode).to.eql(409); pm.expect(json).to.have.property('message'); });",
+                  "pm.test('Pesan menyebut nama sudah ada', () => pm.expect(json.message).to.include('sudah ada'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/departemen",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "departemen"
+              ]
+            },
+            "description": "Nama departemen harus unik, jadi ditolak.\n\nHasil yang diharapkan: HTTP 409.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"namaDepartemen\": \"{{namaDepartemen}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "1.3 Tambah departemen - nama kosong",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code = 400', () => pm.response.to.have.status(400));",
+                  "pm.test('Waktu respons < 3000 ms', () => pm.expect(pm.response.responseTime).to.be.below(3000));",
+                  "const json = pm.response.json();",
+                  "pm.test('Format error: statusCode=400 & ada message', () => { pm.expect(json.statusCode).to.eql(400); pm.expect(json).to.have.property('message'); });",
+                  "pm.test('Pesan validasi benar', () => pm.expect(json.message).to.include('Nama departemen harus diisi'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/departemen",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "departemen"
+              ]
+            },
+            "description": "Field wajib namaDepartemen tidak dikirim.\n\nHasil yang diharapkan: HTTP 400.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"deskripsi\": \"Tanpa nama\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "1.4 Lihat semua departemen",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code = 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Waktu respons < 3000 ms', () => pm.expect(pm.response.responseTime).to.be.below(3000));",
+                  "const json = pm.response.json();",
+                  "pm.test('Format sukses: success=true & statusCode=200', () => { pm.expect(json.success).to.eql(true); pm.expect(json.statusCode).to.eql(200); pm.expect(json).to.have.property('data'); });",
+                  "pm.test('data berupa array', () => pm.expect(json.data).to.be.an('array'));",
+                  "pm.test('Memuat departemen yang baru dibuat', () => pm.expect(json.data.map(d => d.id)).to.include(pm.collectionVariables.get('departemenId')));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/departemen",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "departemen"
+              ]
+            },
+            "description": "Daftar departemen berisi data yang tadi dibuat.\n\nHasil yang diharapkan: HTTP 200."
+          }
+        },
+        {
+          "name": "1.5 Lihat satu departemen",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code = 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Waktu respons < 3000 ms', () => pm.expect(pm.response.responseTime).to.be.below(3000));",
+                  "const json = pm.response.json();",
+                  "pm.test('Format sukses: success=true & statusCode=200', () => { pm.expect(json.success).to.eql(true); pm.expect(json.statusCode).to.eql(200); pm.expect(json).to.have.property('data'); });",
+                  "pm.test('ID sesuai', () => pm.expect(json.data.id).to.eql(pm.collectionVariables.get('departemenId')));",
+                  "pm.test('Ada daftar dokter (relasi)', () => pm.expect(json.data.dokter).to.be.an('array'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/departemen/{{departemenId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "departemen",
+                "{{departemenId}}"
+              ]
+            },
+            "description": "Detail departemen + daftar dokternya.\n\nHasil yang diharapkan: HTTP 200."
+          }
+        },
+        {
+          "name": "1.6 Lihat departemen - ID tidak ditemukan",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code = 404', () => pm.response.to.have.status(404));",
+                  "pm.test('Waktu respons < 3000 ms', () => pm.expect(pm.response.responseTime).to.be.below(3000));",
+                  "const json = pm.response.json();",
+                  "pm.test('Format error: statusCode=404 & ada message', () => { pm.expect(json.statusCode).to.eql(404); pm.expect(json).to.have.property('message'); });",
+                  "pm.test('Pesan tidak ditemukan', () => pm.expect(json.message).to.include('tidak ditemukan'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/departemen/{{unknownId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "departemen",
+                "{{unknownId}}"
+              ]
+            },
+            "description": "UUID valid tetapi tidak ada di database.\n\nHasil yang diharapkan: HTTP 404."
+          }
+        },
+        {
+          "name": "1.7 Lihat departemen - format ID salah",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code = 400', () => pm.response.to.have.status(400));",
+                  "pm.test('Waktu respons < 3000 ms', () => pm.expect(pm.response.responseTime).to.be.below(3000));",
+                  "const json = pm.response.json();",
+                  "pm.test('Format error: statusCode=400 & ada message', () => { pm.expect(json.statusCode).to.eql(400); pm.expect(json).to.have.property('message'); });",
+                  "pm.test('Pesan menyebut uuid', () => pm.expect(json.message).to.include('uuid'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/departemen/abc",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "departemen",
+                "abc"
+              ]
+            },
+            "description": "ID bukan UUID, ditolak ParseUUIDPipe.\n\nHasil yang diharapkan: HTTP 400."
+          }
+        },
+        {
+          "name": "1.8 Ubah departemen",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code = 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Waktu respons < 3000 ms', () => pm.expect(pm.response.responseTime).to.be.below(3000));",
+                  "const json = pm.response.json();",
+                  "pm.test('Format sukses: success=true & statusCode=200', () => { pm.expect(json.success).to.eql(true); pm.expect(json.statusCode).to.eql(200); pm.expect(json).to.have.property('data'); });",
+                  "pm.test('Deskripsi berubah', () => pm.expect(json.data.deskripsi).to.eql('Layanan pemeriksaan umum dan konsultasi'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/departemen/{{departemenId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "departemen",
+                "{{departemenId}}"
+              ]
+            },
+            "description": "Mengubah sebagian data (hanya deskripsi).\n\nHasil yang diharapkan: HTTP 200.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"deskripsi\": \"Layanan pemeriksaan umum dan konsultasi\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "1.9 Ubah departemen - field tidak dikenal",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code = 400', () => pm.response.to.have.status(400));",
+                  "pm.test('Waktu respons < 3000 ms', () => pm.expect(pm.response.responseTime).to.be.below(3000));",
+                  "const json = pm.response.json();",
+                  "pm.test('Format error: statusCode=400 & ada message', () => { pm.expect(json.statusCode).to.eql(400); pm.expect(json).to.have.property('message'); });",
+                  "pm.test('Field asing ditolak', () => pm.expect(json.message.join(' ')).to.include('should not exist'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/departemen/{{departemenId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "departemen",
+                "{{departemenId}}"
+              ]
+            },
+            "description": "forbidNonWhitelisted menolak field yang tidak ada di DTO.\n\nHasil yang diharapkan: HTTP 400.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"warna\": \"biru\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Dokter",
+      "description": "CRUD dokter (relasi: dokter wajib milik satu departemen).",
+      "item": [
+        {
+          "name": "2.1 Tambah dokter",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code = 201', () => pm.response.to.have.status(201));",
+                  "pm.test('Waktu respons < 3000 ms', () => pm.expect(pm.response.responseTime).to.be.below(3000));",
+                  "const json = pm.response.json();",
+                  "pm.test('Format sukses: success=true & statusCode=201', () => { pm.expect(json.success).to.eql(true); pm.expect(json.statusCode).to.eql(201); pm.expect(json).to.have.property('data'); });",
+                  "pm.test('Relasi departemen ikut tampil', () => pm.expect(json.data.departemen.id).to.eql(pm.collectionVariables.get('departemenId')));",
+                  "pm.test('statusAktif default true', () => pm.expect(json.data.statusAktif).to.eql(true));",
+                  "pm.collectionVariables.set('dokterId', json.data.id);  // disimpan untuk request berikutnya"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/dokter",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "dokter"
+              ]
+            },
+            "description": "Membuat dokter di departemen yang tadi dibuat. ID disimpan ke dokterId.\n\nHasil yang diharapkan: HTTP 201.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"departemenId\": \"{{departemenId}}\",\n  \"namaLengkap\": \"dr. Andini Pratama\",\n  \"nomorStr\": \"{{nomorStr}}\",\n  \"spesialisasi\": \"Dokter Umum\",\n  \"email\": \"{{emailDokter}}\",\n  \"nomorTelepon\": \"081234567890\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "2.2 Tambah dokter - departemen tidak ada",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code = 404', () => pm.response.to.have.status(404));",
+                  "pm.test('Waktu respons < 3000 ms', () => pm.expect(pm.response.responseTime).to.be.below(3000));",
+                  "const json = pm.response.json();",
+                  "pm.test('Format error: statusCode=404 & ada message', () => { pm.expect(json.statusCode).to.eql(404); pm.expect(json).to.have.property('message'); });",
+                  "pm.test('Pesan menyebut Departemen', () => pm.expect(json.message).to.include('Departemen'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/dokter",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "dokter"
+              ]
+            },
+            "description": "departemenId valid tetapi tidak ada: relasi tidak boleh rusak.\n\nHasil yang diharapkan: HTTP 404.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"departemenId\": \"{{unknownId}}\",\n  \"namaLengkap\": \"dr. Tidak Ada\",\n  \"nomorStr\": \"STR-X-{{runId}}\",\n  \"spesialisasi\": \"Umum\",\n  \"email\": \"x.{{runId}}@klinik.example\",\n  \"nomorTelepon\": \"081234567890\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "2.3 Tambah dokter - email salah format",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code = 400', () => pm.response.to.have.status(400));",
+                  "pm.test('Waktu respons < 3000 ms', () => pm.expect(pm.response.responseTime).to.be.below(3000));",
+                  "const json = pm.response.json();",
+                  "pm.test('Format error: statusCode=400 & ada message', () => { pm.expect(json.statusCode).to.eql(400); pm.expect(json).to.have.property('message'); });",
+                  "pm.test('Pesan email', () => pm.expect(json.message).to.include('Format email tidak valid'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/dokter",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "dokter"
+              ]
+            },
+            "description": "Email tidak lolos validasi @IsEmail.\n\nHasil yang diharapkan: HTTP 400.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"departemenId\": \"{{departemenId}}\",\n  \"namaLengkap\": \"dr. Salah Email\",\n  \"nomorStr\": \"STR-Y-{{runId}}\",\n  \"spesialisasi\": \"Umum\",\n  \"email\": \"bukan-email\",\n  \"nomorTelepon\": \"081234567890\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "2.4 Tambah dokter - nomor telepon salah",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code = 400', () => pm.response.to.have.status(400));",
+                  "pm.test('Waktu respons < 3000 ms', () => pm.expect(pm.response.responseTime).to.be.below(3000));",
+                  "const json = pm.response.json();",
+                  "pm.test('Format error: statusCode=400 & ada message', () => { pm.expect(json.statusCode).to.eql(400); pm.expect(json).to.have.property('message'); });",
+                  "pm.test('Ada pesan validasi', () => pm.expect(json.message).to.be.an('array').that.is.not.empty);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/dokter",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "dokter"
+              ]
+            },
+            "description": "Nomor telepon bukan format seluler Indonesia.\n\nHasil yang diharapkan: HTTP 400.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"departemenId\": \"{{departemenId}}\",\n  \"namaLengkap\": \"dr. Salah Telepon\",\n  \"nomorStr\": \"STR-Z-{{runId}}\",\n  \"spesialisasi\": \"Umum\",\n  \"email\": \"z.{{runId}}@klinik.example\",\n  \"nomorTelepon\": \"12345\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "2.5 Tambah dokter - nomor STR kembar",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code = 409', () => pm.response.to.have.status(409));",
+                  "pm.test('Waktu respons < 3000 ms', () => pm.expect(pm.response.responseTime).to.be.below(3000));",
+                  "const json = pm.response.json();",
+                  "pm.test('Format error: statusCode=409 & ada message', () => { pm.expect(json.statusCode).to.eql(409); pm.expect(json).to.have.property('message'); });",
+                  "pm.test('Pesan STR kembar', () => pm.expect(json.message).to.include('Nomor STR'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/dokter",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "dokter"
+              ]
+            },
+            "description": "Nomor STR sama dengan dokter yang sudah ada.\n\nHasil yang diharapkan: HTTP 409.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"departemenId\": \"{{departemenId}}\",\n  \"namaLengkap\": \"dr. Kembar STR\",\n  \"nomorStr\": \"{{nomorStr}}\",\n  \"spesialisasi\": \"Umum\",\n  \"email\": \"{{emailDokter2}}\",\n  \"nomorTelepon\": \"081234567890\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "2.6 Lihat semua dokter",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code = 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Waktu respons < 3000 ms', () => pm.expect(pm.response.responseTime).to.be.below(3000));",
+                  "const json = pm.response.json();",
+                  "pm.test('Format sukses: success=true & statusCode=200', () => { pm.expect(json.success).to.eql(true); pm.expect(json.statusCode).to.eql(200); pm.expect(json).to.have.property('data'); });",
+                  "pm.test('Memuat dokter yang baru dibuat', () => pm.expect(json.data.map(d => d.id)).to.include(pm.collectionVariables.get('dokterId')));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/dokter",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "dokter"
+              ]
+            },
+            "description": "Daftar dokter beserta departemennya.\n\nHasil yang diharapkan: HTTP 200."
+          }
+        },
+        {
+          "name": "2.7 Lihat satu dokter",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code = 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Waktu respons < 3000 ms', () => pm.expect(pm.response.responseTime).to.be.below(3000));",
+                  "const json = pm.response.json();",
+                  "pm.test('Format sukses: success=true & statusCode=200', () => { pm.expect(json.success).to.eql(true); pm.expect(json.statusCode).to.eql(200); pm.expect(json).to.have.property('data'); });",
+                  "pm.test('ID sesuai', () => pm.expect(json.data.id).to.eql(pm.collectionVariables.get('dokterId')));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/dokter/{{dokterId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "dokter",
+                "{{dokterId}}"
+              ]
+            },
+            "description": "Detail satu dokter.\n\nHasil yang diharapkan: HTTP 200."
+          }
+        },
+        {
+          "name": "2.8 Lihat dokter - ID tidak ditemukan",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code = 404', () => pm.response.to.have.status(404));",
+                  "pm.test('Waktu respons < 3000 ms', () => pm.expect(pm.response.responseTime).to.be.below(3000));",
+                  "const json = pm.response.json();",
+                  "pm.test('Format error: statusCode=404 & ada message', () => { pm.expect(json.statusCode).to.eql(404); pm.expect(json).to.have.property('message'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/dokter/{{unknownId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "dokter",
+                "{{unknownId}}"
+              ]
+            },
+            "description": "UUID valid tetapi tidak ada.\n\nHasil yang diharapkan: HTTP 404."
+          }
+        },
+        {
+          "name": "2.9 Ubah dokter",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code = 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Waktu respons < 3000 ms', () => pm.expect(pm.response.responseTime).to.be.below(3000));",
+                  "const json = pm.response.json();",
+                  "pm.test('Format sukses: success=true & statusCode=200', () => { pm.expect(json.success).to.eql(true); pm.expect(json.statusCode).to.eql(200); pm.expect(json).to.have.property('data'); });",
+                  "pm.test('Spesialisasi berubah', () => pm.expect(json.data.spesialisasi).to.eql('Penyakit Dalam'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/dokter/{{dokterId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "dokter",
+                "{{dokterId}}"
+              ]
+            },
+            "description": "Mengubah spesialisasi saja.\n\nHasil yang diharapkan: HTTP 200.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"spesialisasi\": \"Penyakit Dalam\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. Pasien",
+      "description": "CRUD pasien fiktif.",
+      "item": [
+        {
+          "name": "3.1 Tambah pasien",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code = 201', () => pm.response.to.have.status(201));",
+                  "pm.test('Waktu respons < 3000 ms', () => pm.expect(pm.response.responseTime).to.be.below(3000));",
+                  "const json = pm.response.json();",
+                  "pm.test('Format sukses: success=true & statusCode=201', () => { pm.expect(json.success).to.eql(true); pm.expect(json.statusCode).to.eql(201); pm.expect(json).to.have.property('data'); });",
+                  "pm.test('Nomor rekam medis otomatis', () => pm.expect(json.data.nomorRekamMedis).to.match(/^RM-\\d{8}-\\d{4}$/));",
+                  "pm.collectionVariables.set('pasienId', json.data.id);  // disimpan untuk request berikutnya"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/pasien",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "pasien"
+              ]
+            },
+            "description": "Membuat pasien. Nomor rekam medis dibuat otomatis. ID disimpan ke pasienId.\n\nHasil yang diharapkan: HTTP 201.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"namaLengkap\": \"Budi Santoso\",\n  \"nik\": \"{{nik}}\",\n  \"jenisKelamin\": \"LAKI_LAKI\",\n  \"tanggalLahir\": \"1990-01-01\",\n  \"alamat\": \"Jl. Merdeka No. 10, Kota Contoh\",\n  \"nomorTelepon\": \"081298765432\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "3.2 Tambah pasien - NIK kembar",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code = 409', () => pm.response.to.have.status(409));",
+                  "pm.test('Waktu respons < 3000 ms', () => pm.expect(pm.response.responseTime).to.be.below(3000));",
+                  "const json = pm.response.json();",
+                  "pm.test('Format error: statusCode=409 & ada message', () => { pm.expect(json.statusCode).to.eql(409); pm.expect(json).to.have.property('message'); });",
+                  "pm.test('Pesan NIK kembar', () => pm.expect(json.message).to.include('sudah terdaftar'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/pasien",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "pasien"
+              ]
+            },
+            "description": "NIK harus unik.\n\nHasil yang diharapkan: HTTP 409.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"namaLengkap\": \"Pasien Kembar\",\n  \"nik\": \"{{nik}}\",\n  \"jenisKelamin\": \"PEREMPUAN\",\n  \"tanggalLahir\": \"1992-02-02\",\n  \"alamat\": \"Jl. Kembar No. 1\",\n  \"nomorTelepon\": \"081211112222\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "3.3 Tambah pasien - NIK bukan 16 digit",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code = 400', () => pm.response.to.have.status(400));",
+                  "pm.test('Waktu respons < 3000 ms', () => pm.expect(pm.response.responseTime).to.be.below(3000));",
+                  "const json = pm.response.json();",
+                  "pm.test('Format error: statusCode=400 & ada message', () => { pm.expect(json.statusCode).to.eql(400); pm.expect(json).to.have.property('message'); });",
+                  "pm.test('Pesan NIK', () => pm.expect(json.message).to.include('NIK harus berupa 16 digit angka'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/pasien",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "pasien"
+              ]
+            },
+            "description": "NIK hanya 15 digit.\n\nHasil yang diharapkan: HTTP 400.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"namaLengkap\": \"Pasien NIK Salah\",\n  \"nik\": \"123456789012345\",\n  \"jenisKelamin\": \"LAKI_LAKI\",\n  \"tanggalLahir\": \"1990-01-01\",\n  \"alamat\": \"Jl. Salah No. 1\",\n  \"nomorTelepon\": \"081211112222\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "3.4 Tambah pasien - tanggal lahir masa depan",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code = 400', () => pm.response.to.have.status(400));",
+                  "pm.test('Waktu respons < 3000 ms', () => pm.expect(pm.response.responseTime).to.be.below(3000));",
+                  "const json = pm.response.json();",
+                  "pm.test('Format error: statusCode=400 & ada message', () => { pm.expect(json.statusCode).to.eql(400); pm.expect(json).to.have.property('message'); });",
+                  "pm.test('Pesan masa depan', () => pm.expect(json.message).to.include('masa depan'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/pasien",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "pasien"
+              ]
+            },
+            "description": "Aturan bisnis: tanggal lahir tidak boleh di masa depan.\n\nHasil yang diharapkan: HTTP 400.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"namaLengkap\": \"Pasien Masa Depan\",\n  \"nik\": \"{{nik}}\",\n  \"jenisKelamin\": \"LAKI_LAKI\",\n  \"tanggalLahir\": \"{{tanggalMasaDepan}}\",\n  \"alamat\": \"Jl. Masa Depan No. 1\",\n  \"nomorTelepon\": \"081211112222\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "3.5 Tambah pasien - jenis kelamin tidak valid",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code = 400', () => pm.response.to.have.status(400));",
+                  "pm.test('Waktu respons < 3000 ms', () => pm.expect(pm.response.responseTime).to.be.below(3000));",
+                  "const json = pm.response.json();",
+                  "pm.test('Format error: statusCode=400 & ada message', () => { pm.expect(json.statusCode).to.eql(400); pm.expect(json).to.have.property('message'); });",
+                  "pm.test('Pesan enum', () => pm.expect(json.message.join(' ')).to.include('LAKI_LAKI atau PEREMPUAN'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/pasien",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "pasien"
+              ]
+            },
+            "description": "Enum hanya LAKI_LAKI atau PEREMPUAN.\n\nHasil yang diharapkan: HTTP 400.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"namaLengkap\": \"Pasien Enum Salah\",\n  \"nik\": \"3301999999999999\",\n  \"jenisKelamin\": \"LAINNYA\",\n  \"tanggalLahir\": \"1990-01-01\",\n  \"alamat\": \"Jl. Enum No. 1\",\n  \"nomorTelepon\": \"081211112222\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "3.6 Lihat semua pasien",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code = 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Waktu respons < 3000 ms', () => pm.expect(pm.response.responseTime).to.be.below(3000));",
+                  "const json = pm.response.json();",
+                  "pm.test('Format sukses: success=true & statusCode=200', () => { pm.expect(json.success).to.eql(true); pm.expect(json.statusCode).to.eql(200); pm.expect(json).to.have.property('data'); });",
+                  "pm.test('Memuat pasien yang baru dibuat', () => pm.expect(json.data.map(d => d.id)).to.include(pm.collectionVariables.get('pasienId')));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/pasien",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "pasien"
+              ]
+            },
+            "description": "Daftar pasien.\n\nHasil yang diharapkan: HTTP 200."
+          }
+        },
+        {
+          "name": "3.7 Lihat satu pasien",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code = 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Waktu respons < 3000 ms', () => pm.expect(pm.response.responseTime).to.be.below(3000));",
+                  "const json = pm.response.json();",
+                  "pm.test('Format sukses: success=true & statusCode=200', () => { pm.expect(json.success).to.eql(true); pm.expect(json.statusCode).to.eql(200); pm.expect(json).to.have.property('data'); });",
+                  "pm.test('ID sesuai', () => pm.expect(json.data.id).to.eql(pm.collectionVariables.get('pasienId')));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/pasien/{{pasienId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "pasien",
+                "{{pasienId}}"
+              ]
+            },
+            "description": "Detail satu pasien.\n\nHasil yang diharapkan: HTTP 200."
+          }
+        },
+        {
+          "name": "3.8 Lihat pasien - ID tidak ditemukan",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code = 404', () => pm.response.to.have.status(404));",
+                  "pm.test('Waktu respons < 3000 ms', () => pm.expect(pm.response.responseTime).to.be.below(3000));",
+                  "const json = pm.response.json();",
+                  "pm.test('Format error: statusCode=404 & ada message', () => { pm.expect(json.statusCode).to.eql(404); pm.expect(json).to.have.property('message'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/pasien/{{unknownId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "pasien",
+                "{{unknownId}}"
+              ]
+            },
+            "description": "UUID valid tetapi tidak ada.\n\nHasil yang diharapkan: HTTP 404."
+          }
+        },
+        {
+          "name": "3.9 Ubah pasien",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code = 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Waktu respons < 3000 ms', () => pm.expect(pm.response.responseTime).to.be.below(3000));",
+                  "const json = pm.response.json();",
+                  "pm.test('Format sukses: success=true & statusCode=200', () => { pm.expect(json.success).to.eql(true); pm.expect(json.statusCode).to.eql(200); pm.expect(json).to.have.property('data'); });",
+                  "pm.test('Alamat berubah', () => pm.expect(json.data.alamat).to.eql('Jl. Melati No. 5, Kota Contoh'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/pasien/{{pasienId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "pasien",
+                "{{pasienId}}"
+              ]
+            },
+            "description": "Mengubah alamat saja.\n\nHasil yang diharapkan: HTTP 200.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"alamat\": \"Jl. Melati No. 5, Kota Contoh\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. Janji Temu",
+      "description": "Membuat janji (relasi pasien + dokter), validasi jadwal, dan konfirmasi.",
+      "item": [
+        {
+          "name": "4.1 Buat janji temu A",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code = 201', () => pm.response.to.have.status(201));",
+                  "pm.test('Waktu respons < 3000 ms', () => pm.expect(pm.response.responseTime).to.be.below(3000));",
+                  "const json = pm.response.json();",
+                  "pm.test('Format sukses: success=true & statusCode=201', () => { pm.expect(json.success).to.eql(true); pm.expect(json.statusCode).to.eql(201); pm.expect(json).to.have.property('data'); });",
+                  "pm.test('Status awal TERJADWAL', () => pm.expect(json.data.status).to.eql('TERJADWAL'));",
+                  "pm.test('Kode janji otomatis', () => pm.expect(json.data.kodeJanjiTemu).to.match(/^JT-\\d{8}-[A-Z0-9]{5}$/));",
+                  "pm.test('Belum ada rekam medis', () => pm.expect(json.data.rekamMedis).to.eql(null));",
+                  "pm.collectionVariables.set('janjiTemuId', json.data.id);  // disimpan untuk request berikutnya"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/janji-temu",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "janji-temu"
+              ]
+            },
+            "description": "Janji pertama. Status awal TERJADWAL. ID disimpan ke janjiTemuId.\n\nHasil yang diharapkan: HTTP 201.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"pasienId\": \"{{pasienId}}\",\n  \"dokterId\": \"{{dokterId}}\",\n  \"keluhan\": \"Demam dan batuk sejak tiga hari\",\n  \"jadwal\": \"{{jadwal1}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "4.2 Buat janji temu - jadwal dokter bentrok",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code = 409', () => pm.response.to.have.status(409));",
+                  "pm.test('Waktu respons < 3000 ms', () => pm.expect(pm.response.responseTime).to.be.below(3000));",
+                  "const json = pm.response.json();",
+                  "pm.test('Format error: statusCode=409 & ada message', () => { pm.expect(json.statusCode).to.eql(409); pm.expect(json).to.have.property('message'); });",
+                  "pm.test('Pesan bentrok dokter', () => pm.expect(json.message).to.include('Dokter sudah memiliki janji'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/janji-temu",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "janji-temu"
+              ]
+            },
+            "description": "Dokter yang sama pada jam yang sama.\n\nHasil yang diharapkan: HTTP 409.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"pasienId\": \"{{pasienId}}\",\n  \"dokterId\": \"{{dokterId}}\",\n  \"keluhan\": \"Demam dan batuk sejak tiga hari\",\n  \"jadwal\": \"{{jadwal1}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "4.3 Buat janji temu - jadwal di masa lalu",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code = 400', () => pm.response.to.have.status(400));",
+                  "pm.test('Waktu respons < 3000 ms', () => pm.expect(pm.response.responseTime).to.be.below(3000));",
+                  "const json = pm.response.json();",
+                  "pm.test('Format error: statusCode=400 & ada message', () => { pm.expect(json.statusCode).to.eql(400); pm.expect(json).to.have.property('message'); });",
+                  "pm.test('Pesan masa depan', () => pm.expect(json.message).to.include('masa depan'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/janji-temu",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "janji-temu"
+              ]
+            },
+            "description": "Jadwal harus di masa depan.\n\nHasil yang diharapkan: HTTP 400.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"pasienId\": \"{{pasienId}}\",\n  \"dokterId\": \"{{dokterId}}\",\n  \"keluhan\": \"Demam dan batuk sejak tiga hari\",\n  \"jadwal\": \"{{jadwalLalu}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "4.4 Buat janji temu - pasien tidak ada",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code = 404', () => pm.response.to.have.status(404));",
+                  "pm.test('Waktu respons < 3000 ms', () => pm.expect(pm.response.responseTime).to.be.below(3000));",
+                  "const json = pm.response.json();",
+                  "pm.test('Format error: statusCode=404 & ada message', () => { pm.expect(json.statusCode).to.eql(404); pm.expect(json).to.have.property('message'); });",
+                  "pm.test('Pesan Pasien', () => pm.expect(json.message).to.include('Pasien'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/janji-temu",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "janji-temu"
+              ]
+            },
+            "description": "pasienId valid tetapi tidak ada.\n\nHasil yang diharapkan: HTTP 404.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"pasienId\": \"{{unknownId}}\",\n  \"dokterId\": \"{{dokterId}}\",\n  \"keluhan\": \"Demam dan batuk sejak tiga hari\",\n  \"jadwal\": \"{{jadwal3}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "4.5 Buat janji temu - dokter tidak ada",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code = 404', () => pm.response.to.have.status(404));",
+                  "pm.test('Waktu respons < 3000 ms', () => pm.expect(pm.response.responseTime).to.be.below(3000));",
+                  "const json = pm.response.json();",
+                  "pm.test('Format error: statusCode=404 & ada message', () => { pm.expect(json.statusCode).to.eql(404); pm.expect(json).to.have.property('message'); });",
+                  "pm.test('Pesan Dokter', () => pm.expect(json.message).to.include('Dokter'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/janji-temu",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "janji-temu"
+              ]
+            },
+            "description": "dokterId valid tetapi tidak ada.\n\nHasil yang diharapkan: HTTP 404.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"pasienId\": \"{{pasienId}}\",\n  \"dokterId\": \"{{unknownId}}\",\n  \"keluhan\": \"Demam dan batuk sejak tiga hari\",\n  \"jadwal\": \"{{jadwal3}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "4.6 Buat janji temu B",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code = 201', () => pm.response.to.have.status(201));",
+                  "pm.test('Waktu respons < 3000 ms', () => pm.expect(pm.response.responseTime).to.be.below(3000));",
+                  "const json = pm.response.json();",
+                  "pm.test('Format sukses: success=true & statusCode=201', () => { pm.expect(json.success).to.eql(true); pm.expect(json.statusCode).to.eql(201); pm.expect(json).to.have.property('data'); });",
+                  "pm.test('Status awal TERJADWAL', () => pm.expect(json.data.status).to.eql('TERJADWAL'));",
+                  "pm.collectionVariables.set('janjiTemuId2', json.data.id);  // disimpan untuk request berikutnya"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/janji-temu",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "janji-temu"
+              ]
+            },
+            "description": "Janji kedua (hari berikutnya) untuk pengujian pembatalan. ID disimpan ke janjiTemuId2.\n\nHasil yang diharapkan: HTTP 201.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"pasienId\": \"{{pasienId}}\",\n  \"dokterId\": \"{{dokterId}}\",\n  \"keluhan\": \"Demam dan batuk sejak tiga hari\",\n  \"jadwal\": \"{{jadwal2}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "4.7 Lihat semua janji temu",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code = 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Waktu respons < 3000 ms', () => pm.expect(pm.response.responseTime).to.be.below(3000));",
+                  "const json = pm.response.json();",
+                  "pm.test('Format sukses: success=true & statusCode=200', () => { pm.expect(json.success).to.eql(true); pm.expect(json.statusCode).to.eql(200); pm.expect(json).to.have.property('data'); });",
+                  "pm.test('Memuat janji A', () => pm.expect(json.data.map(d => d.id)).to.include(pm.collectionVariables.get('janjiTemuId')));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/janji-temu",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "janji-temu"
+              ]
+            },
+            "description": "Daftar janji beserta pasien dan dokter.\n\nHasil yang diharapkan: HTTP 200."
+          }
+        },
+        {
+          "name": "4.8 Lihat satu janji temu",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code = 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Waktu respons < 3000 ms', () => pm.expect(pm.response.responseTime).to.be.below(3000));",
+                  "const json = pm.response.json();",
+                  "pm.test('Format sukses: success=true & statusCode=200', () => { pm.expect(json.success).to.eql(true); pm.expect(json.statusCode).to.eql(200); pm.expect(json).to.have.property('data'); });",
+                  "pm.test('Relasi pasien benar', () => pm.expect(json.data.pasien.id).to.eql(pm.collectionVariables.get('pasienId')));",
+                  "pm.test('Relasi dokter + departemen ada', () => pm.expect(json.data.dokter.departemen).to.be.an('object'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/janji-temu/{{janjiTemuId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "janji-temu",
+                "{{janjiTemuId}}"
+              ]
+            },
+            "description": "Detail janji: pasien, dokter, dan departemen dokter.\n\nHasil yang diharapkan: HTTP 200."
+          }
+        },
+        {
+          "name": "4.9 Lihat janji temu milik pasien",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code = 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Waktu respons < 3000 ms', () => pm.expect(pm.response.responseTime).to.be.below(3000));",
+                  "const json = pm.response.json();",
+                  "pm.test('Format sukses: success=true & statusCode=200', () => { pm.expect(json.success).to.eql(true); pm.expect(json.statusCode).to.eql(200); pm.expect(json).to.have.property('data'); });",
+                  "pm.test('Pasien punya >= 2 janji', () => pm.expect(json.data.length).to.be.at.least(2));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/pasien/{{pasienId}}/janji-temu",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "pasien",
+                "{{pasienId}}",
+                "janji-temu"
+              ]
+            },
+            "description": "Relasi 1 pasien -> banyak janji.\n\nHasil yang diharapkan: HTTP 200."
+          }
+        },
+        {
+          "name": "4.10 Lihat janji temu milik dokter",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code = 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Waktu respons < 3000 ms', () => pm.expect(pm.response.responseTime).to.be.below(3000));",
+                  "const json = pm.response.json();",
+                  "pm.test('Format sukses: success=true & statusCode=200', () => { pm.expect(json.success).to.eql(true); pm.expect(json.statusCode).to.eql(200); pm.expect(json).to.have.property('data'); });",
+                  "pm.test('Dokter punya >= 2 janji', () => pm.expect(json.data.length).to.be.at.least(2));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/dokter/{{dokterId}}/janji-temu",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "dokter",
+                "{{dokterId}}",
+                "janji-temu"
+              ]
+            },
+            "description": "Relasi 1 dokter -> banyak janji.\n\nHasil yang diharapkan: HTTP 200."
+          }
+        },
+        {
+          "name": "4.11 Lihat rekam medis janji (belum ada)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code = 404', () => pm.response.to.have.status(404));",
+                  "pm.test('Waktu respons < 3000 ms', () => pm.expect(pm.response.responseTime).to.be.below(3000));",
+                  "const json = pm.response.json();",
+                  "pm.test('Format error: statusCode=404 & ada message', () => { pm.expect(json.statusCode).to.eql(404); pm.expect(json).to.have.property('message'); });",
+                  "pm.test('Pesan belum ada rekam medis', () => pm.expect(json.message).to.include('belum memiliki rekam medis'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/janji-temu/{{janjiTemuId}}/rekam-medis",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "janji-temu",
+                "{{janjiTemuId}}",
+                "rekam-medis"
+              ]
+            },
+            "description": "Janji A belum punya catatan kunjungan.\n\nHasil yang diharapkan: HTTP 404."
+          }
+        },
+        {
+          "name": "4.12 Ubah status - loncat TERJADWAL ke SELESAI",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code = 409', () => pm.response.to.have.status(409));",
+                  "pm.test('Waktu respons < 3000 ms', () => pm.expect(pm.response.responseTime).to.be.below(3000));",
+                  "const json = pm.response.json();",
+                  "pm.test('Format error: statusCode=409 & ada message', () => { pm.expect(json.statusCode).to.eql(409); pm.expect(json).to.have.property('message'); });",
+                  "pm.test('Pesan transisi status', () => pm.expect(json.message).to.include('Status tidak dapat diubah'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/janji-temu/{{janjiTemuId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "janji-temu",
+                "{{janjiTemuId}}"
+              ]
+            },
+            "description": "Perpindahan status tidak sah.\n\nHasil yang diharapkan: HTTP 409.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"SELESAI\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "4.13 Ubah keluhan janji temu",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code = 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Waktu respons < 3000 ms', () => pm.expect(pm.response.responseTime).to.be.below(3000));",
+                  "const json = pm.response.json();",
+                  "pm.test('Format sukses: success=true & statusCode=200', () => { pm.expect(json.success).to.eql(true); pm.expect(json.statusCode).to.eql(200); pm.expect(json).to.have.property('data'); });",
+                  "pm.test('Keluhan berubah', () => pm.expect(json.data.keluhan).to.include('pilek'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/janji-temu/{{janjiTemuId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "janji-temu",
+                "{{janjiTemuId}}"
+              ]
+            },
+            "description": "Mengubah keluhan saat janji masih aktif.\n\nHasil yang diharapkan: HTTP 200.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"keluhan\": \"Demam, batuk, dan pilek sejak tiga hari\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "4.14 Ubah status - konfirmasi janji A",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code = 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Waktu respons < 3000 ms', () => pm.expect(pm.response.responseTime).to.be.below(3000));",
+                  "const json = pm.response.json();",
+                  "pm.test('Format sukses: success=true & statusCode=200', () => { pm.expect(json.success).to.eql(true); pm.expect(json.statusCode).to.eql(200); pm.expect(json).to.have.property('data'); });",
+                  "pm.test('Status DIKONFIRMASI', () => pm.expect(json.data.status).to.eql('DIKONFIRMASI'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/janji-temu/{{janjiTemuId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "janji-temu",
+                "{{janjiTemuId}}"
+              ]
+            },
+            "description": "TERJADWAL -> DIKONFIRMASI (sah).\n\nHasil yang diharapkan: HTTP 200.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"DIKONFIRMASI\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "5. Rekam Medis",
+      "description": "Catatan kunjungan: relasi 1 janji temu -> 0..1 rekam medis dan aturan bisnisnya.",
+      "item": [
+        {
+          "name": "5.1 Buat rekam medis - janji masih TERJADWAL",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code = 409', () => pm.response.to.have.status(409));",
+                  "pm.test('Waktu respons < 3000 ms', () => pm.expect(pm.response.responseTime).to.be.below(3000));",
+                  "const json = pm.response.json();",
+                  "pm.test('Format error: statusCode=409 & ada message', () => { pm.expect(json.statusCode).to.eql(409); pm.expect(json).to.have.property('message'); });",
+                  "pm.test('Pesan status', () => pm.expect(json.message).to.include('DIKONFIRMASI atau SELESAI'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/rekam-medis",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "rekam-medis"
+              ]
+            },
+            "description": "Janji B masih TERJADWAL: belum boleh dicatat.\n\nHasil yang diharapkan: HTTP 409.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"janjiTemuId\": \"{{janjiTemuId2}}\",\n  \"catatanKunjungan\": \"Seharusnya ditolak\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "5.2 Buat rekam medis untuk janji A",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code = 201', () => pm.response.to.have.status(201));",
+                  "pm.test('Waktu respons < 3000 ms', () => pm.expect(pm.response.responseTime).to.be.below(3000));",
+                  "const json = pm.response.json();",
+                  "pm.test('Format sukses: success=true & statusCode=201', () => { pm.expect(json.success).to.eql(true); pm.expect(json.statusCode).to.eql(201); pm.expect(json).to.have.property('data'); });",
+                  "pm.test('Status janji otomatis SELESAI', () => pm.expect(json.data.janjiTemu.status).to.eql('SELESAI'));",
+                  "pm.test('Kolom tekananDarah sudah tidak ada', () => pm.expect(json.data).to.not.have.property('tekananDarah'));",
+                  "pm.test('Kolom suhuTubuh sudah tidak ada', () => pm.expect(json.data).to.not.have.property('suhuTubuh'));",
+                  "pm.test('Kolom beratBadan sudah tidak ada', () => pm.expect(json.data).to.not.have.property('beratBadan'));",
+                  "pm.collectionVariables.set('rekamMedisId', json.data.id);  // disimpan untuk request berikutnya"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/rekam-medis",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "rekam-medis"
+              ]
+            },
+            "description": "Janji A (DIKONFIRMASI) dicatat. Status janji otomatis menjadi SELESAI. ID disimpan ke rekamMedisId.\n\nHasil yang diharapkan: HTTP 201.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"janjiTemuId\": \"{{janjiTemuId}}\",\n  \"catatanKunjungan\": \"Pasien datang dengan keluhan demam dan batuk. Disarankan istirahat cukup dan banyak minum air putih.\",\n  \"tindakan\": \"Observasi dan edukasi istirahat cukup\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "5.3 Buat rekam medis - sudah ada untuk janji ini",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code = 409', () => pm.response.to.have.status(409));",
+                  "pm.test('Waktu respons < 3000 ms', () => pm.expect(pm.response.responseTime).to.be.below(3000));",
+                  "const json = pm.response.json();",
+                  "pm.test('Format error: statusCode=409 & ada message', () => { pm.expect(json.statusCode).to.eql(409); pm.expect(json).to.have.property('message'); });",
+                  "pm.test('Pesan sudah ada', () => pm.expect(json.message).to.include('sudah memiliki rekam medis'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/rekam-medis",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "rekam-medis"
+              ]
+            },
+            "description": "Satu janji hanya boleh punya satu rekam medis.\n\nHasil yang diharapkan: HTTP 409.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"janjiTemuId\": \"{{janjiTemuId}}\",\n  \"catatanKunjungan\": \"Rekam kedua seharusnya ditolak\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "5.4 Buat rekam medis - kirim kolom yang sudah dihapus",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code = 400', () => pm.response.to.have.status(400));",
+                  "pm.test('Waktu respons < 3000 ms', () => pm.expect(pm.response.responseTime).to.be.below(3000));",
+                  "const json = pm.response.json();",
+                  "pm.test('Format error: statusCode=400 & ada message', () => { pm.expect(json.statusCode).to.eql(400); pm.expect(json).to.have.property('message'); });",
+                  "pm.test('tekananDarah ditolak', () => pm.expect(json.message.join(' ')).to.include('tekananDarah should not exist'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/rekam-medis",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "rekam-medis"
+              ]
+            },
+            "description": "Kolom tekananDarah sudah dihapus dari DTO, jadi ditolak sebagai field tak dikenal.\n\nHasil yang diharapkan: HTTP 400.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"janjiTemuId\": \"{{janjiTemuId}}\",\n  \"catatanKunjungan\": \"Tes kolom lama\",\n  \"tekananDarah\": \"120/80\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "5.5 Buat rekam medis - catatan kosong",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code = 400', () => pm.response.to.have.status(400));",
+                  "pm.test('Waktu respons < 3000 ms', () => pm.expect(pm.response.responseTime).to.be.below(3000));",
+                  "const json = pm.response.json();",
+                  "pm.test('Format error: statusCode=400 & ada message', () => { pm.expect(json.statusCode).to.eql(400); pm.expect(json).to.have.property('message'); });",
+                  "pm.test('Pesan catatan wajib', () => pm.expect(json.message).to.include('Catatan kunjungan harus diisi'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/rekam-medis",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "rekam-medis"
+              ]
+            },
+            "description": "catatanKunjungan wajib.\n\nHasil yang diharapkan: HTTP 400.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"janjiTemuId\": \"{{janjiTemuId}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "5.6 Buat rekam medis - janji tidak ada",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code = 404', () => pm.response.to.have.status(404));",
+                  "pm.test('Waktu respons < 3000 ms', () => pm.expect(pm.response.responseTime).to.be.below(3000));",
+                  "const json = pm.response.json();",
+                  "pm.test('Format error: statusCode=404 & ada message', () => { pm.expect(json.statusCode).to.eql(404); pm.expect(json).to.have.property('message'); });",
+                  "pm.test('Pesan Janji temu', () => pm.expect(json.message).to.include('Janji temu'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/rekam-medis",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "rekam-medis"
+              ]
+            },
+            "description": "janjiTemuId valid tetapi tidak ada.\n\nHasil yang diharapkan: HTTP 404.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"janjiTemuId\": \"{{unknownId}}\",\n  \"catatanKunjungan\": \"Janji tidak ada\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "5.7 Cek status janji A setelah rekam dibuat",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code = 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Waktu respons < 3000 ms', () => pm.expect(pm.response.responseTime).to.be.below(3000));",
+                  "const json = pm.response.json();",
+                  "pm.test('Format sukses: success=true & statusCode=200', () => { pm.expect(json.success).to.eql(true); pm.expect(json.statusCode).to.eql(200); pm.expect(json).to.have.property('data'); });",
+                  "pm.test('Status SELESAI', () => pm.expect(json.data.status).to.eql('SELESAI'));",
+                  "pm.test('Rekam medis terhubung', () => pm.expect(json.data.rekamMedis.id).to.eql(pm.collectionVariables.get('rekamMedisId')));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/janji-temu/{{janjiTemuId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "janji-temu",
+                "{{janjiTemuId}}"
+              ]
+            },
+            "description": "Membuktikan transaksi: status janji sudah SELESAI dan rekam medis terhubung.\n\nHasil yang diharapkan: HTTP 200."
+          }
+        },
+        {
+          "name": "5.8 Lihat rekam medis dari janji temu",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code = 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Waktu respons < 3000 ms', () => pm.expect(pm.response.responseTime).to.be.below(3000));",
+                  "const json = pm.response.json();",
+                  "pm.test('Format sukses: success=true & statusCode=200', () => { pm.expect(json.success).to.eql(true); pm.expect(json.statusCode).to.eql(200); pm.expect(json).to.have.property('data'); });",
+                  "pm.test('ID rekam medis sesuai', () => pm.expect(json.data.id).to.eql(pm.collectionVariables.get('rekamMedisId')));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/janji-temu/{{janjiTemuId}}/rekam-medis",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "janji-temu",
+                "{{janjiTemuId}}",
+                "rekam-medis"
+              ]
+            },
+            "description": "Endpoint relasi janji -> rekam medis.\n\nHasil yang diharapkan: HTTP 200."
+          }
+        },
+        {
+          "name": "5.9 Lihat semua rekam medis",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code = 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Waktu respons < 3000 ms', () => pm.expect(pm.response.responseTime).to.be.below(3000));",
+                  "const json = pm.response.json();",
+                  "pm.test('Format sukses: success=true & statusCode=200', () => { pm.expect(json.success).to.eql(true); pm.expect(json.statusCode).to.eql(200); pm.expect(json).to.have.property('data'); });",
+                  "pm.test('Memuat rekam medis baru', () => pm.expect(json.data.map(d => d.id)).to.include(pm.collectionVariables.get('rekamMedisId')));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/rekam-medis",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "rekam-medis"
+              ]
+            },
+            "description": "Daftar rekam medis.\n\nHasil yang diharapkan: HTTP 200."
+          }
+        },
+        {
+          "name": "5.10 Lihat satu rekam medis",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code = 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Waktu respons < 3000 ms', () => pm.expect(pm.response.responseTime).to.be.below(3000));",
+                  "const json = pm.response.json();",
+                  "pm.test('Format sukses: success=true & statusCode=200', () => { pm.expect(json.success).to.eql(true); pm.expect(json.statusCode).to.eql(200); pm.expect(json).to.have.property('data'); });",
+                  "pm.test('Relasi janjiTemu.pasien ada', () => pm.expect(json.data.janjiTemu.pasien).to.be.an('object'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/rekam-medis/{{rekamMedisId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "rekam-medis",
+                "{{rekamMedisId}}"
+              ]
+            },
+            "description": "Detail rekam medis + janji temu + pasien + dokter.\n\nHasil yang diharapkan: HTTP 200."
+          }
+        },
+        {
+          "name": "5.11 Lihat rekam medis - ID tidak ditemukan",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code = 404', () => pm.response.to.have.status(404));",
+                  "pm.test('Waktu respons < 3000 ms', () => pm.expect(pm.response.responseTime).to.be.below(3000));",
+                  "const json = pm.response.json();",
+                  "pm.test('Format error: statusCode=404 & ada message', () => { pm.expect(json.statusCode).to.eql(404); pm.expect(json).to.have.property('message'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/rekam-medis/{{unknownId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "rekam-medis",
+                "{{unknownId}}"
+              ]
+            },
+            "description": "UUID valid tetapi tidak ada.\n\nHasil yang diharapkan: HTTP 404."
+          }
+        },
+        {
+          "name": "5.12 Ubah rekam medis",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code = 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Waktu respons < 3000 ms', () => pm.expect(pm.response.responseTime).to.be.below(3000));",
+                  "const json = pm.response.json();",
+                  "pm.test('Format sukses: success=true & statusCode=200', () => { pm.expect(json.success).to.eql(true); pm.expect(json.statusCode).to.eql(200); pm.expect(json).to.have.property('data'); });",
+                  "pm.test('Tindakan berubah', () => pm.expect(json.data.tindakan).to.include('kontrol ulang'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/rekam-medis/{{rekamMedisId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "rekam-medis",
+                "{{rekamMedisId}}"
+              ]
+            },
+            "description": "Mengubah tindakan.\n\nHasil yang diharapkan: HTTP 200.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"tindakan\": \"Observasi, istirahat cukup, kontrol ulang bila perlu\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "5.13 Ubah rekam medis - janjiTemuId tidak boleh diganti",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code = 400', () => pm.response.to.have.status(400));",
+                  "pm.test('Waktu respons < 3000 ms', () => pm.expect(pm.response.responseTime).to.be.below(3000));",
+                  "const json = pm.response.json();",
+                  "pm.test('Format error: statusCode=400 & ada message', () => { pm.expect(json.statusCode).to.eql(400); pm.expect(json).to.have.property('message'); });",
+                  "pm.test('janjiTemuId ditolak', () => pm.expect(json.message.join(' ')).to.include('should not exist'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/rekam-medis/{{rekamMedisId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "rekam-medis",
+                "{{rekamMedisId}}"
+              ]
+            },
+            "description": "Rekam medis terikat pada satu janji temu.\n\nHasil yang diharapkan: HTTP 400.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"janjiTemuId\": \"{{janjiTemuId2}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "6. Status & Pembatalan Janji Temu",
+      "description": "Menguji alur status (state machine) pada janji B.",
+      "item": [
+        {
+          "name": "6.1 Batalkan janji B tanpa alasan",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code = 400', () => pm.response.to.have.status(400));",
+                  "pm.test('Waktu respons < 3000 ms', () => pm.expect(pm.response.responseTime).to.be.below(3000));",
+                  "const json = pm.response.json();",
+                  "pm.test('Format error: statusCode=400 & ada message', () => { pm.expect(json.statusCode).to.eql(400); pm.expect(json).to.have.property('message'); });",
+                  "pm.test('Pesan alasan wajib', () => pm.expect(json.message).to.include('Alasan pembatalan wajib'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/janji-temu/{{janjiTemuId2}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "janji-temu",
+                "{{janjiTemuId2}}"
+              ]
+            },
+            "description": "Pembatalan wajib disertai alasan.\n\nHasil yang diharapkan: HTTP 400.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"DIBATALKAN\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "6.2 Batalkan janji B dengan alasan",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code = 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Waktu respons < 3000 ms', () => pm.expect(pm.response.responseTime).to.be.below(3000));",
+                  "const json = pm.response.json();",
+                  "pm.test('Format sukses: success=true & statusCode=200', () => { pm.expect(json.success).to.eql(true); pm.expect(json.statusCode).to.eql(200); pm.expect(json).to.have.property('data'); });",
+                  "pm.test('Status DIBATALKAN', () => pm.expect(json.data.status).to.eql('DIBATALKAN'));",
+                  "pm.test('Alasan tersimpan', () => pm.expect(json.data.alasanPembatalan).to.eql('Pasien berhalangan hadir'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/janji-temu/{{janjiTemuId2}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "janji-temu",
+                "{{janjiTemuId2}}"
+              ]
+            },
+            "description": "TERJADWAL -> DIBATALKAN (sah).\n\nHasil yang diharapkan: HTTP 200.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"DIBATALKAN\",\n  \"alasanPembatalan\": \"Pasien berhalangan hadir\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "6.3 Aktifkan lagi janji yang sudah batal",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code = 409', () => pm.response.to.have.status(409));",
+                  "pm.test('Waktu respons < 3000 ms', () => pm.expect(pm.response.responseTime).to.be.below(3000));",
+                  "const json = pm.response.json();",
+                  "pm.test('Format error: statusCode=409 & ada message', () => { pm.expect(json.statusCode).to.eql(409); pm.expect(json).to.have.property('message'); });",
+                  "pm.test('Pesan status akhir', () => pm.expect(json.message).to.include('status akhir'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/janji-temu/{{janjiTemuId2}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "janji-temu",
+                "{{janjiTemuId2}}"
+              ]
+            },
+            "description": "DIBATALKAN adalah status akhir.\n\nHasil yang diharapkan: HTTP 409.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"DIKONFIRMASI\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "6.4 Ubah jadwal janji yang sudah batal",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code = 409', () => pm.response.to.have.status(409));",
+                  "pm.test('Waktu respons < 3000 ms', () => pm.expect(pm.response.responseTime).to.be.below(3000));",
+                  "const json = pm.response.json();",
+                  "pm.test('Format error: statusCode=409 & ada message', () => { pm.expect(json.statusCode).to.eql(409); pm.expect(json).to.have.property('message'); });",
+                  "pm.test('Pesan tidak dapat diubah', () => pm.expect(json.message).to.include('tidak dapat diubah'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/janji-temu/{{janjiTemuId2}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "janji-temu",
+                "{{janjiTemuId2}}"
+              ]
+            },
+            "description": "Janji batal tidak boleh diubah jadwalnya.\n\nHasil yang diharapkan: HTTP 409.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"jadwal\": \"{{jadwal3}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "6.5 Ubah status - nilai enum tidak dikenal",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code = 400', () => pm.response.to.have.status(400));",
+                  "pm.test('Waktu respons < 3000 ms', () => pm.expect(pm.response.responseTime).to.be.below(3000));",
+                  "const json = pm.response.json();",
+                  "pm.test('Format error: statusCode=400 & ada message', () => { pm.expect(json.statusCode).to.eql(400); pm.expect(json).to.have.property('message'); });",
+                  "pm.test('Pesan enum status', () => pm.expect(json.message.join(' ')).to.include('Status harus salah satu dari'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/janji-temu/{{janjiTemuId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "janji-temu",
+                "{{janjiTemuId}}"
+              ]
+            },
+            "description": "Status harus salah satu dari 4 nilai enum.\n\nHasil yang diharapkan: HTTP 400.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"ABC\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "6.6 Ubah janji temu - pasienId tidak boleh diganti",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code = 400', () => pm.response.to.have.status(400));",
+                  "pm.test('Waktu respons < 3000 ms', () => pm.expect(pm.response.responseTime).to.be.below(3000));",
+                  "const json = pm.response.json();",
+                  "pm.test('Format error: statusCode=400 & ada message', () => { pm.expect(json.statusCode).to.eql(400); pm.expect(json).to.have.property('message'); });",
+                  "pm.test('pasienId ditolak', () => pm.expect(json.message.join(' ')).to.include('should not exist'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/janji-temu/{{janjiTemuId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "janji-temu",
+                "{{janjiTemuId}}"
+              ]
+            },
+            "description": "Pasien tidak bisa diganti lewat PATCH.\n\nHasil yang diharapkan: HTTP 400.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"pasienId\": \"{{unknownId}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "7. Konflik Penghapusan (Integritas Relasi)",
+      "description": "Membuktikan data yang masih dipakai relasi tidak bisa dihapus.",
+      "item": [
+        {
+          "name": "7.1 Hapus pasien yang punya janji temu",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code = 409', () => pm.response.to.have.status(409));",
+                  "pm.test('Waktu respons < 3000 ms', () => pm.expect(pm.response.responseTime).to.be.below(3000));",
+                  "const json = pm.response.json();",
+                  "pm.test('Format error: statusCode=409 & ada message', () => { pm.expect(json.statusCode).to.eql(409); pm.expect(json).to.have.property('message'); });",
+                  "pm.test('Pesan janji temu', () => pm.expect(json.message).to.include('janji temu'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/pasien/{{pasienId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "pasien",
+                "{{pasienId}}"
+              ]
+            },
+            "description": "Pasien masih punya janji.\n\nHasil yang diharapkan: HTTP 409."
+          }
+        },
+        {
+          "name": "7.2 Hapus dokter yang punya janji temu",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code = 409', () => pm.response.to.have.status(409));",
+                  "pm.test('Waktu respons < 3000 ms', () => pm.expect(pm.response.responseTime).to.be.below(3000));",
+                  "const json = pm.response.json();",
+                  "pm.test('Format error: statusCode=409 & ada message', () => { pm.expect(json.statusCode).to.eql(409); pm.expect(json).to.have.property('message'); });",
+                  "pm.test('Pesan janji temu', () => pm.expect(json.message).to.include('janji temu'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/dokter/{{dokterId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "dokter",
+                "{{dokterId}}"
+              ]
+            },
+            "description": "Dokter masih punya janji.\n\nHasil yang diharapkan: HTTP 409."
+          }
+        },
+        {
+          "name": "7.3 Hapus departemen yang punya dokter",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code = 409', () => pm.response.to.have.status(409));",
+                  "pm.test('Waktu respons < 3000 ms', () => pm.expect(pm.response.responseTime).to.be.below(3000));",
+                  "const json = pm.response.json();",
+                  "pm.test('Format error: statusCode=409 & ada message', () => { pm.expect(json.statusCode).to.eql(409); pm.expect(json).to.have.property('message'); });",
+                  "pm.test('Pesan dokter', () => pm.expect(json.message).to.include('dokter'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/departemen/{{departemenId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "departemen",
+                "{{departemenId}}"
+              ]
+            },
+            "description": "Departemen masih punya dokter.\n\nHasil yang diharapkan: HTTP 409."
+          }
+        },
+        {
+          "name": "7.4 Hapus janji temu yang punya rekam medis",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code = 409', () => pm.response.to.have.status(409));",
+                  "pm.test('Waktu respons < 3000 ms', () => pm.expect(pm.response.responseTime).to.be.below(3000));",
+                  "const json = pm.response.json();",
+                  "pm.test('Format error: statusCode=409 & ada message', () => { pm.expect(json.statusCode).to.eql(409); pm.expect(json).to.have.property('message'); });",
+                  "pm.test('Pesan rekam medis', () => pm.expect(json.message).to.include('rekam medis'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/janji-temu/{{janjiTemuId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "janji-temu",
+                "{{janjiTemuId}}"
+              ]
+            },
+            "description": "Janji A sudah punya rekam medis.\n\nHasil yang diharapkan: HTTP 409."
+          }
+        }
+      ]
+    },
+    {
+      "name": "8. Pembersihan (Delete)",
+      "description": "Menghapus semua data uji dari anak ke induk, sekaligus menguji operasi DELETE.",
+      "item": [
+        {
+          "name": "8.1 Hapus rekam medis",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code = 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Waktu respons < 3000 ms', () => pm.expect(pm.response.responseTime).to.be.below(3000));",
+                  "const json = pm.response.json();",
+                  "pm.test('Format sukses: success=true & statusCode=200', () => { pm.expect(json.success).to.eql(true); pm.expect(json.statusCode).to.eql(200); pm.expect(json).to.have.property('data'); });",
+                  "pm.test('idTerhapus sesuai', () => pm.expect(json.data.idTerhapus).to.eql(pm.collectionVariables.get('rekamMedisId')));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/rekam-medis/{{rekamMedisId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "rekam-medis",
+                "{{rekamMedisId}}"
+              ]
+            },
+            "description": "Hapus paling bawah dulu.\n\nHasil yang diharapkan: HTTP 200."
+          }
+        },
+        {
+          "name": "8.2 Hapus janji temu A",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code = 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Waktu respons < 3000 ms', () => pm.expect(pm.response.responseTime).to.be.below(3000));",
+                  "const json = pm.response.json();",
+                  "pm.test('Format sukses: success=true & statusCode=200', () => { pm.expect(json.success).to.eql(true); pm.expect(json.statusCode).to.eql(200); pm.expect(json).to.have.property('data'); });",
+                  "pm.test('idTerhapus sesuai', () => pm.expect(json.data.idTerhapus).to.eql(pm.collectionVariables.get('janjiTemuId')));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/janji-temu/{{janjiTemuId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "janji-temu",
+                "{{janjiTemuId}}"
+              ]
+            },
+            "description": "Sekarang tidak punya rekam medis lagi.\n\nHasil yang diharapkan: HTTP 200."
+          }
+        },
+        {
+          "name": "8.3 Hapus janji temu B",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code = 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Waktu respons < 3000 ms', () => pm.expect(pm.response.responseTime).to.be.below(3000));",
+                  "const json = pm.response.json();",
+                  "pm.test('Format sukses: success=true & statusCode=200', () => { pm.expect(json.success).to.eql(true); pm.expect(json.statusCode).to.eql(200); pm.expect(json).to.have.property('data'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/janji-temu/{{janjiTemuId2}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "janji-temu",
+                "{{janjiTemuId2}}"
+              ]
+            },
+            "description": "Janji batal boleh dihapus.\n\nHasil yang diharapkan: HTTP 200."
+          }
+        },
+        {
+          "name": "8.4 Hapus pasien",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code = 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Waktu respons < 3000 ms', () => pm.expect(pm.response.responseTime).to.be.below(3000));",
+                  "const json = pm.response.json();",
+                  "pm.test('Format sukses: success=true & statusCode=200', () => { pm.expect(json.success).to.eql(true); pm.expect(json.statusCode).to.eql(200); pm.expect(json).to.have.property('data'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/pasien/{{pasienId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "pasien",
+                "{{pasienId}}"
+              ]
+            },
+            "description": "Pasien sudah tidak punya janji.\n\nHasil yang diharapkan: HTTP 200."
+          }
+        },
+        {
+          "name": "8.5 Hapus dokter",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code = 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Waktu respons < 3000 ms', () => pm.expect(pm.response.responseTime).to.be.below(3000));",
+                  "const json = pm.response.json();",
+                  "pm.test('Format sukses: success=true & statusCode=200', () => { pm.expect(json.success).to.eql(true); pm.expect(json.statusCode).to.eql(200); pm.expect(json).to.have.property('data'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/dokter/{{dokterId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "dokter",
+                "{{dokterId}}"
+              ]
+            },
+            "description": "Dokter sudah tidak punya janji.\n\nHasil yang diharapkan: HTTP 200."
+          }
+        },
+        {
+          "name": "8.6 Hapus departemen",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code = 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Waktu respons < 3000 ms', () => pm.expect(pm.response.responseTime).to.be.below(3000));",
+                  "const json = pm.response.json();",
+                  "pm.test('Format sukses: success=true & statusCode=200', () => { pm.expect(json.success).to.eql(true); pm.expect(json.statusCode).to.eql(200); pm.expect(json).to.have.property('data'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/departemen/{{departemenId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "departemen",
+                "{{departemenId}}"
+              ]
+            },
+            "description": "Departemen sudah tidak punya dokter.\n\nHasil yang diharapkan: HTTP 200."
+          }
+        },
+        {
+          "name": "8.7 Cek pasien sudah terhapus",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code = 404', () => pm.response.to.have.status(404));",
+                  "pm.test('Waktu respons < 3000 ms', () => pm.expect(pm.response.responseTime).to.be.below(3000));",
+                  "const json = pm.response.json();",
+                  "pm.test('Format error: statusCode=404 & ada message', () => { pm.expect(json.statusCode).to.eql(404); pm.expect(json).to.have.property('message'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/pasien/{{pasienId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "pasien",
+                "{{pasienId}}"
+              ]
+            },
+            "description": "Membuktikan data benar-benar hilang.\n\nHasil yang diharapkan: HTTP 404."
+          }
+        },
+        {
+          "name": "8.8 Cek rekam medis sudah terhapus",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code = 404', () => pm.response.to.have.status(404));",
+                  "pm.test('Waktu respons < 3000 ms', () => pm.expect(pm.response.responseTime).to.be.below(3000));",
+                  "const json = pm.response.json();",
+                  "pm.test('Format error: statusCode=404 & ada message', () => { pm.expect(json.statusCode).to.eql(404); pm.expect(json).to.have.property('message'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/rekam-medis/{{rekamMedisId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "rekam-medis",
+                "{{rekamMedisId}}"
+              ]
+            },
+            "description": "Membuktikan data benar-benar hilang.\n\nHasil yang diharapkan: HTTP 404."
+          }
+        }
+      ]
+    }
+  ]
+}

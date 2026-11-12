@@ -3,6 +3,7 @@ import { AppService } from './app.service.js';
 
 @Controller()
 export class AppController {
+  [x: string]: any;
   constructor(private readonly appService: AppService) {}
 
   // GET / -> cek apakah server hidup (health check sederhana)
@@ -11,3 +12,4 @@ export class AppController {
       return this.appService.getInfo();
     }
 }
+  

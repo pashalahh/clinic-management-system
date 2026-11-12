@@ -1,0 +1,4456 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Clinic Management System API",
+    "version": "1.0.0",
+    "description": "Backend administrasi klinik: pengelolaan departemen, dokter, pasien, janji temu, dan rekam medis (catatan kunjungan).\n\nDibangun dengan NestJS, TypeORM, dan PostgreSQL. Seluruh data pasien dan dokter pada contoh adalah **data fiktif**.\n\n**Format response sukses:** `{ success, message, statusCode, data }`.\n**Format response error:** `{ message, error, statusCode }` (format bawaan NestJS).\n\n**Hubungan antar data:** Departemen 1—N Dokter, Pasien 1—N Janji Temu, Dokter 1—N Janji Temu, Janji Temu 1—(0..1) Rekam Medis.\n\n**Alur status janji temu:** TERJADWAL → DIKONFIRMASI → SELESAI; TERJADWAL/DIKONFIRMASI → DIBATALKAN (wajib alasan)."
+  },
+  "servers": [
+    {
+      "url": "http://localhost:3000",
+      "description": "Server lokal (development)"
+    }
+  ],
+  "tags": [
+    {
+      "name": "Sistem",
+      "description": "Pengecekan server"
+    },
+    {
+      "name": "Departemen",
+      "description": "Bagian / poli layanan klinik"
+    },
+    {
+      "name": "Dokter",
+      "description": "Data dokter (selalu milik satu departemen)"
+    },
+    {
+      "name": "Pasien",
+      "description": "Data pasien fiktif"
+    },
+    {
+      "name": "Janji Temu",
+      "description": "Jadwal pertemuan pasien dengan dokter + status"
+    },
+    {
+      "name": "Rekam Medis",
+      "description": "Catatan kunjungan untuk satu janji temu"
+    }
+  ],
+  "paths": {
+    "/": {
+      "get": {
+        "tags": [
+          "Sistem"
+        ],
+        "summary": "Cek server hidup",
+        "description": "Mengembalikan nama, versi, dan status aplikasi. Dipakai untuk memastikan server sudah berjalan.",
+        "operationId": "getInfo",
+        "responses": {
+          "200": {
+            "description": "Berhasil",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "Data berhasil diambil"
+                    },
+                    "statusCode": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/AppInfo"
+                    }
+                  }
+                },
+                "example": {
+                  "success": true,
+                  "message": "Data berhasil diambil",
+                  "statusCode": 200,
+                  "data": {
+                    "nama": "API Clinic Management System",
+                    "versi": "1.0.0",
+                    "status": "berjalan"
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Kesalahan tak terduga di server (mis. database mati)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "statusCode": 500,
+                  "message": "Internal server error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/departemen": {
+      "post": {
+        "tags": [
+          "Departemen"
+        ],
+        "summary": "Tambah departemen",
+        "description": "Membuat departemen baru. Nama departemen tidak boleh sama dengan yang sudah ada.",
+        "operationId": "createDepartemen",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateDepartemenDto"
+              },
+              "example": {
+                "namaDepartemen": "Poli Umum",
+                "deskripsi": "Layanan pemeriksaan kesehatan umum"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Berhasil",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "Data berhasil dibuat"
+                    },
+                    "statusCode": {
+                      "type": "integer",
+                      "example": 201
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/Departemen"
+                    }
+                  }
+                },
+                "example": {
+                  "success": true,
+                  "message": "Data berhasil dibuat",
+                  "statusCode": 201,
+                  "data": {
+                    "id": "7c9e6679-7425-40de-944b-e07fc1f90ae7",
+                    "namaDepartemen": "Poli Umum",
+                    "deskripsi": "Layanan pemeriksaan kesehatan umum",
+                    "dibuatPada": "2026-11-12T03:15:30.123Z",
+                    "diperbaruiPada": "2026-11-12T03:15:30.123Z",
+                    "dihapusPada": null
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Nama departemen kosong / lebih dari 50 karakter / ada field tak dikenal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "message": "Nama departemen harus diisi",
+                  "error": "Bad Request",
+                  "statusCode": 400
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Nama departemen sudah dipakai",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "message": "Departemen dengan nama \"Poli Umum\" sudah ada",
+                  "error": "Conflict",
+                  "statusCode": 409
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Kesalahan tak terduga di server (mis. database mati)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "statusCode": 500,
+                  "message": "Internal server error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "Departemen"
+        ],
+        "summary": "Lihat semua departemen",
+        "description": "Menampilkan seluruh departemen, diurutkan A-Z berdasarkan nama.",
+        "operationId": "listDepartemen",
+        "responses": {
+          "200": {
+            "description": "Berhasil",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "Data berhasil diambil"
+                    },
+                    "statusCode": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Departemen"
+                      }
+                    }
+                  }
+                },
+                "example": {
+                  "success": true,
+                  "message": "Data berhasil diambil",
+                  "statusCode": 200,
+                  "data": [
+                    {
+                      "id": "7c9e6679-7425-40de-944b-e07fc1f90ae7",
+                      "namaDepartemen": "Poli Umum",
+                      "deskripsi": "Layanan pemeriksaan kesehatan umum",
+                      "dibuatPada": "2026-11-12T03:15:30.123Z",
+                      "diperbaruiPada": "2026-11-12T03:15:30.123Z",
+                      "dihapusPada": null
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Kesalahan tak terduga di server (mis. database mati)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "statusCode": 500,
+                  "message": "Internal server error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/departemen/{id}": {
+      "get": {
+        "tags": [
+          "Departemen"
+        ],
+        "summary": "Lihat satu departemen beserta dokternya",
+        "description": "Menampilkan satu departemen lengkap dengan daftar dokter yang bertugas di dalamnya.",
+        "operationId": "getDepartemen",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "ID departemen (UUID)",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "example": "7c9e6679-7425-40de-944b-e07fc1f90ae7"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Berhasil",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "Data berhasil diambil"
+                    },
+                    "statusCode": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/DepartemenDetail"
+                    }
+                  }
+                },
+                "example": {
+                  "success": true,
+                  "message": "Data berhasil diambil",
+                  "statusCode": 200,
+                  "data": {
+                    "id": "7c9e6679-7425-40de-944b-e07fc1f90ae7",
+                    "namaDepartemen": "Poli Umum",
+                    "deskripsi": "Layanan pemeriksaan kesehatan umum",
+                    "dibuatPada": "2026-11-12T03:15:30.123Z",
+                    "diperbaruiPada": "2026-11-12T03:15:30.123Z",
+                    "dihapusPada": null,
+                    "dokter": [
+                      {
+                        "id": "9b2d1c4e-3f6a-4d8b-a1c5-2e7f8a9b0c3d",
+                        "departemenId": "7c9e6679-7425-40de-944b-e07fc1f90ae7",
+                        "namaLengkap": "dr. Andini Pratama",
+                        "nomorStr": "STR-3301-2024-001234",
+                        "spesialisasi": "Dokter Umum",
+                        "email": "andini.pratama@klinik.example",
+                        "nomorTelepon": "081234567890",
+                        "statusAktif": true,
+                        "dibuatPada": "2026-11-12T03:15:30.123Z",
+                        "diperbaruiPada": "2026-11-12T03:15:30.123Z",
+                        "dihapusPada": null
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "ID pada URL bukan UUID yang valid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "message": "Validation failed (uuid is expected)",
+                  "error": "Bad Request",
+                  "statusCode": 400
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Departemen dengan ID tersebut tidak ditemukan",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "message": "Departemen 11111111-1111-4111-8111-111111111111 tidak ditemukan",
+                  "error": "Not Found",
+                  "statusCode": 404
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Kesalahan tak terduga di server (mis. database mati)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "statusCode": 500,
+                  "message": "Internal server error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "Departemen"
+        ],
+        "summary": "Ubah departemen",
+        "description": "Mengubah sebagian data departemen. Kirim hanya field yang ingin diubah.",
+        "operationId": "updateDepartemen",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "ID departemen (UUID)",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "example": "7c9e6679-7425-40de-944b-e07fc1f90ae7"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateDepartemenDto"
+              },
+              "example": {
+                "deskripsi": "Layanan pemeriksaan umum dan konsultasi"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Berhasil",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "Data berhasil diperbarui"
+                    },
+                    "statusCode": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/DepartemenDetail"
+                    }
+                  }
+                },
+                "example": {
+                  "success": true,
+                  "message": "Data berhasil diperbarui",
+                  "statusCode": 200,
+                  "data": {
+                    "id": "7c9e6679-7425-40de-944b-e07fc1f90ae7",
+                    "namaDepartemen": "Poli Umum",
+                    "deskripsi": "Layanan pemeriksaan umum dan konsultasi",
+                    "dibuatPada": "2026-11-12T03:15:30.123Z",
+                    "diperbaruiPada": "2026-11-12T03:15:30.123Z",
+                    "dihapusPada": null,
+                    "dokter": [
+                      {
+                        "id": "9b2d1c4e-3f6a-4d8b-a1c5-2e7f8a9b0c3d",
+                        "departemenId": "7c9e6679-7425-40de-944b-e07fc1f90ae7",
+                        "namaLengkap": "dr. Andini Pratama",
+                        "nomorStr": "STR-3301-2024-001234",
+                        "spesialisasi": "Dokter Umum",
+                        "email": "andini.pratama@klinik.example",
+                        "nomorTelepon": "081234567890",
+                        "statusAktif": true,
+                        "dibuatPada": "2026-11-12T03:15:30.123Z",
+                        "diperbaruiPada": "2026-11-12T03:15:30.123Z",
+                        "dihapusPada": null
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "ID pada URL bukan UUID yang valid / Data tidak valid atau ada field tak dikenal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "examples": {
+                  "contoh1": {
+                    "summary": "ID pada URL bukan UUID yang valid",
+                    "value": {
+                      "message": "Validation failed (uuid is expected)",
+                      "error": "Bad Request",
+                      "statusCode": 400
+                    }
+                  },
+                  "contoh2": {
+                    "summary": "Data tidak valid atau ada field tak dikenal",
+                    "value": {
+                      "message": "Nama departemen maksimal 50 karakter",
+                      "error": "Bad Request",
+                      "statusCode": 400
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Departemen dengan ID tersebut tidak ditemukan",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "message": "Departemen 11111111-1111-4111-8111-111111111111 tidak ditemukan",
+                  "error": "Not Found",
+                  "statusCode": 404
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Nama baru sudah dipakai departemen lain",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "message": "Departemen dengan nama \"Poli Gigi\" sudah ada",
+                  "error": "Conflict",
+                  "statusCode": 409
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Kesalahan tak terduga di server (mis. database mati)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "statusCode": 500,
+                  "message": "Internal server error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Departemen"
+        ],
+        "summary": "Hapus departemen",
+        "description": "Menghapus departemen. Ditolak jika departemen masih memiliki dokter.",
+        "operationId": "deleteDepartemen",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "ID departemen (UUID)",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "example": "7c9e6679-7425-40de-944b-e07fc1f90ae7"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Berhasil",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "Data berhasil dihapus"
+                    },
+                    "statusCode": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/DeleteResult"
+                    }
+                  }
+                },
+                "example": {
+                  "success": true,
+                  "message": "Data berhasil dihapus",
+                  "statusCode": 200,
+                  "data": {
+                    "message": "Departemen 7c9e6679-7425-40de-944b-e07fc1f90ae7 berhasil dihapus",
+                    "idTerhapus": "7c9e6679-7425-40de-944b-e07fc1f90ae7"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "ID pada URL bukan UUID yang valid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "message": "Validation failed (uuid is expected)",
+                  "error": "Bad Request",
+                  "statusCode": 400
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Departemen dengan ID tersebut tidak ditemukan",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "message": "Departemen 11111111-1111-4111-8111-111111111111 tidak ditemukan",
+                  "error": "Not Found",
+                  "statusCode": 404
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Departemen masih memiliki dokter",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "message": "Departemen tidak dapat dihapus karena masih memiliki 2 dokter",
+                  "error": "Conflict",
+                  "statusCode": 409
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Kesalahan tak terduga di server (mis. database mati)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "statusCode": 500,
+                  "message": "Internal server error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/dokter": {
+      "post": {
+        "tags": [
+          "Dokter"
+        ],
+        "summary": "Tambah dokter",
+        "description": "Membuat dokter baru yang tergabung dalam satu departemen. Nomor STR dan email harus unik.",
+        "operationId": "createDokter",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateDokterDto"
+              },
+              "example": {
+                "departemenId": "7c9e6679-7425-40de-944b-e07fc1f90ae7",
+                "namaLengkap": "dr. Andini Pratama",
+                "nomorStr": "STR-3301-2024-001234",
+                "spesialisasi": "Dokter Umum",
+                "email": "andini.pratama@klinik.example",
+                "nomorTelepon": "081234567890",
+                "statusAktif": true
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Berhasil",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "Data berhasil dibuat"
+                    },
+                    "statusCode": {
+                      "type": "integer",
+                      "example": 201
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/DokterDetail"
+                    }
+                  }
+                },
+                "example": {
+                  "success": true,
+                  "message": "Data berhasil dibuat",
+                  "statusCode": 201,
+                  "data": {
+                    "id": "9b2d1c4e-3f6a-4d8b-a1c5-2e7f8a9b0c3d",
+                    "departemenId": "7c9e6679-7425-40de-944b-e07fc1f90ae7",
+                    "namaLengkap": "dr. Andini Pratama",
+                    "nomorStr": "STR-3301-2024-001234",
+                    "spesialisasi": "Dokter Umum",
+                    "email": "andini.pratama@klinik.example",
+                    "nomorTelepon": "081234567890",
+                    "statusAktif": true,
+                    "dibuatPada": "2026-11-12T03:15:30.123Z",
+                    "diperbaruiPada": "2026-11-12T03:15:30.123Z",
+                    "dihapusPada": null,
+                    "departemen": {
+                      "id": "7c9e6679-7425-40de-944b-e07fc1f90ae7",
+                      "namaDepartemen": "Poli Umum",
+                      "deskripsi": "Layanan pemeriksaan kesehatan umum",
+                      "dibuatPada": "2026-11-12T03:15:30.123Z",
+                      "diperbaruiPada": "2026-11-12T03:15:30.123Z",
+                      "dihapusPada": null
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Data tidak valid (email salah format, nomor telepon salah, dst.)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "message": "Format email tidak valid",
+                  "error": "Bad Request",
+                  "statusCode": 400
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Departemen dengan ID tersebut tidak ditemukan",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "message": "Departemen 7c9e6679-7425-40de-944b-e07fc1f90ae7 tidak ditemukan",
+                  "error": "Not Found",
+                  "statusCode": 404
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Nomor STR atau email sudah terdaftar",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "message": "Nomor STR STR-3301-2024-001234 sudah terdaftar",
+                  "error": "Conflict",
+                  "statusCode": 409
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Kesalahan tak terduga di server (mis. database mati)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "statusCode": 500,
+                  "message": "Internal server error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "Dokter"
+        ],
+        "summary": "Lihat semua dokter",
+        "description": "Menampilkan seluruh dokter beserta departemennya, diurutkan A-Z berdasarkan nama.",
+        "operationId": "listDokter",
+        "responses": {
+          "200": {
+            "description": "Berhasil",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "Data berhasil diambil"
+                    },
+                    "statusCode": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/DokterDetail"
+                      }
+                    }
+                  }
+                },
+                "example": {
+                  "success": true,
+                  "message": "Data berhasil diambil",
+                  "statusCode": 200,
+                  "data": [
+                    {
+                      "id": "9b2d1c4e-3f6a-4d8b-a1c5-2e7f8a9b0c3d",
+                      "departemenId": "7c9e6679-7425-40de-944b-e07fc1f90ae7",
+                      "namaLengkap": "dr. Andini Pratama",
+                      "nomorStr": "STR-3301-2024-001234",
+                      "spesialisasi": "Dokter Umum",
+                      "email": "andini.pratama@klinik.example",
+                      "nomorTelepon": "081234567890",
+                      "statusAktif": true,
+                      "dibuatPada": "2026-11-12T03:15:30.123Z",
+                      "diperbaruiPada": "2026-11-12T03:15:30.123Z",
+                      "dihapusPada": null,
+                      "departemen": {
+                        "id": "7c9e6679-7425-40de-944b-e07fc1f90ae7",
+                        "namaDepartemen": "Poli Umum",
+                        "deskripsi": "Layanan pemeriksaan kesehatan umum",
+                        "dibuatPada": "2026-11-12T03:15:30.123Z",
+                        "diperbaruiPada": "2026-11-12T03:15:30.123Z",
+                        "dihapusPada": null
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Kesalahan tak terduga di server (mis. database mati)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "statusCode": 500,
+                  "message": "Internal server error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/dokter/{id}": {
+      "get": {
+        "tags": [
+          "Dokter"
+        ],
+        "summary": "Lihat satu dokter",
+        "description": "Menampilkan satu dokter beserta departemennya.",
+        "operationId": "getDokter",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "ID dokter (UUID)",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "example": "9b2d1c4e-3f6a-4d8b-a1c5-2e7f8a9b0c3d"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Berhasil",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "Data berhasil diambil"
+                    },
+                    "statusCode": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/DokterDetail"
+                    }
+                  }
+                },
+                "example": {
+                  "success": true,
+                  "message": "Data berhasil diambil",
+                  "statusCode": 200,
+                  "data": {
+                    "id": "9b2d1c4e-3f6a-4d8b-a1c5-2e7f8a9b0c3d",
+                    "departemenId": "7c9e6679-7425-40de-944b-e07fc1f90ae7",
+                    "namaLengkap": "dr. Andini Pratama",
+                    "nomorStr": "STR-3301-2024-001234",
+                    "spesialisasi": "Dokter Umum",
+                    "email": "andini.pratama@klinik.example",
+                    "nomorTelepon": "081234567890",
+                    "statusAktif": true,
+                    "dibuatPada": "2026-11-12T03:15:30.123Z",
+                    "diperbaruiPada": "2026-11-12T03:15:30.123Z",
+                    "dihapusPada": null,
+                    "departemen": {
+                      "id": "7c9e6679-7425-40de-944b-e07fc1f90ae7",
+                      "namaDepartemen": "Poli Umum",
+                      "deskripsi": "Layanan pemeriksaan kesehatan umum",
+                      "dibuatPada": "2026-11-12T03:15:30.123Z",
+                      "diperbaruiPada": "2026-11-12T03:15:30.123Z",
+                      "dihapusPada": null
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "ID pada URL bukan UUID yang valid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "message": "Validation failed (uuid is expected)",
+                  "error": "Bad Request",
+                  "statusCode": 400
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Dokter dengan ID tersebut tidak ditemukan",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "message": "Dokter 11111111-1111-4111-8111-111111111111 tidak ditemukan",
+                  "error": "Not Found",
+                  "statusCode": 404
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Kesalahan tak terduga di server (mis. database mati)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "statusCode": 500,
+                  "message": "Internal server error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "Dokter"
+        ],
+        "summary": "Ubah dokter",
+        "description": "Mengubah sebagian data dokter. Untuk menonaktifkan dokter, kirim statusAktif = false.",
+        "operationId": "updateDokter",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "ID dokter (UUID)",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "example": "9b2d1c4e-3f6a-4d8b-a1c5-2e7f8a9b0c3d"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateDokterDto"
+              },
+              "example": {
+                "spesialisasi": "Penyakit Dalam"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Berhasil",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "Data berhasil diperbarui"
+                    },
+                    "statusCode": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/DokterDetail"
+                    }
+                  }
+                },
+                "example": {
+                  "success": true,
+                  "message": "Data berhasil diperbarui",
+                  "statusCode": 200,
+                  "data": {
+                    "id": "9b2d1c4e-3f6a-4d8b-a1c5-2e7f8a9b0c3d",
+                    "departemenId": "7c9e6679-7425-40de-944b-e07fc1f90ae7",
+                    "namaLengkap": "dr. Andini Pratama",
+                    "nomorStr": "STR-3301-2024-001234",
+                    "spesialisasi": "Penyakit Dalam",
+                    "email": "andini.pratama@klinik.example",
+                    "nomorTelepon": "081234567890",
+                    "statusAktif": true,
+                    "dibuatPada": "2026-11-12T03:15:30.123Z",
+                    "diperbaruiPada": "2026-11-12T03:15:30.123Z",
+                    "dihapusPada": null,
+                    "departemen": {
+                      "id": "7c9e6679-7425-40de-944b-e07fc1f90ae7",
+                      "namaDepartemen": "Poli Umum",
+                      "deskripsi": "Layanan pemeriksaan kesehatan umum",
+                      "dibuatPada": "2026-11-12T03:15:30.123Z",
+                      "diperbaruiPada": "2026-11-12T03:15:30.123Z",
+                      "dihapusPada": null
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "ID pada URL bukan UUID yang valid / Data tidak valid atau ada field tak dikenal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "examples": {
+                  "contoh1": {
+                    "summary": "ID pada URL bukan UUID yang valid",
+                    "value": {
+                      "message": "Validation failed (uuid is expected)",
+                      "error": "Bad Request",
+                      "statusCode": 400
+                    }
+                  },
+                  "contoh2": {
+                    "summary": "Data tidak valid atau ada field tak dikenal",
+                    "value": {
+                      "message": "Format email tidak valid",
+                      "error": "Bad Request",
+                      "statusCode": 400
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Dokter dengan ID tersebut tidak ditemukan",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "message": "Dokter 11111111-1111-4111-8111-111111111111 tidak ditemukan",
+                  "error": "Not Found",
+                  "statusCode": 404
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Nomor STR atau email dipakai dokter lain",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "message": "Email andini.pratama@klinik.example sudah terdaftar",
+                  "error": "Conflict",
+                  "statusCode": 409
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Kesalahan tak terduga di server (mis. database mati)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "statusCode": 500,
+                  "message": "Internal server error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Dokter"
+        ],
+        "summary": "Hapus dokter",
+        "description": "Menghapus dokter. Ditolak jika dokter masih memiliki janji temu (gunakan statusAktif = false untuk menonaktifkan).",
+        "operationId": "deleteDokter",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "ID dokter (UUID)",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "example": "9b2d1c4e-3f6a-4d8b-a1c5-2e7f8a9b0c3d"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Berhasil",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "Data berhasil dihapus"
+                    },
+                    "statusCode": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/DeleteResult"
+                    }
+                  }
+                },
+                "example": {
+                  "success": true,
+                  "message": "Data berhasil dihapus",
+                  "statusCode": 200,
+                  "data": {
+                    "message": "Dokter 9b2d1c4e-3f6a-4d8b-a1c5-2e7f8a9b0c3d berhasil dihapus",
+                    "idTerhapus": "9b2d1c4e-3f6a-4d8b-a1c5-2e7f8a9b0c3d"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "ID pada URL bukan UUID yang valid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "message": "Validation failed (uuid is expected)",
+                  "error": "Bad Request",
+                  "statusCode": 400
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Dokter dengan ID tersebut tidak ditemukan",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "message": "Dokter 11111111-1111-4111-8111-111111111111 tidak ditemukan",
+                  "error": "Not Found",
+                  "statusCode": 404
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Dokter masih memiliki janji temu",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "message": "Dokter tidak dapat dihapus karena masih memiliki 3 janji temu. Nonaktifkan dokter dengan statusAktif = false",
+                  "error": "Conflict",
+                  "statusCode": 409
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Kesalahan tak terduga di server (mis. database mati)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "statusCode": 500,
+                  "message": "Internal server error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/dokter/{id}/janji-temu": {
+      "get": {
+        "tags": [
+          "Dokter"
+        ],
+        "summary": "Lihat janji temu milik dokter",
+        "description": "Menampilkan semua janji temu yang ditangani seorang dokter (terbaru di atas), lengkap dengan data pasien.",
+        "operationId": "listJanjiTemuDokter",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "ID dokter (UUID)",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "example": "9b2d1c4e-3f6a-4d8b-a1c5-2e7f8a9b0c3d"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Berhasil",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "Data berhasil diambil"
+                    },
+                    "statusCode": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/JanjiTemuDenganPasien"
+                      }
+                    }
+                  }
+                },
+                "example": {
+                  "success": true,
+                  "message": "Data berhasil diambil",
+                  "statusCode": 200,
+                  "data": [
+                    {
+                      "id": "b1a7e5d2-6c3f-4a98-8e14-5d0c9f2a7b61",
+                      "kodeJanjiTemu": "JT-20261112-K7Q2X",
+                      "pasienId": "3f2b8c1e-5d4a-4b7e-9c21-8a6f0d1e2b34",
+                      "dokterId": "9b2d1c4e-3f6a-4d8b-a1c5-2e7f8a9b0c3d",
+                      "jadwal": "2026-11-20T02:00:00.000Z",
+                      "keluhan": "Demam dan batuk sejak tiga hari",
+                      "status": "TERJADWAL",
+                      "alasanPembatalan": null,
+                      "dibuatPada": "2026-11-12T03:15:30.123Z",
+                      "diperbaruiPada": "2026-11-12T03:15:30.123Z",
+                      "pasien": {
+                        "id": "3f2b8c1e-5d4a-4b7e-9c21-8a6f0d1e2b34",
+                        "nomorRekamMedis": "RM-20261112-4821",
+                        "namaLengkap": "Budi Santoso",
+                        "nik": "3301010101900001",
+                        "jenisKelamin": "LAKI_LAKI",
+                        "tanggalLahir": "1990-01-01",
+                        "alamat": "Jl. Merdeka No. 10, Kota Contoh",
+                        "nomorTelepon": "081298765432",
+                        "dibuatPada": "2026-11-12T03:15:30.123Z",
+                        "diperbaruiPada": "2026-11-12T03:15:30.123Z"
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "ID pada URL bukan UUID yang valid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "message": "Validation failed (uuid is expected)",
+                  "error": "Bad Request",
+                  "statusCode": 400
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Dokter dengan ID tersebut tidak ditemukan",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "message": "Dokter 11111111-1111-4111-8111-111111111111 tidak ditemukan",
+                  "error": "Not Found",
+                  "statusCode": 404
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Kesalahan tak terduga di server (mis. database mati)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "statusCode": 500,
+                  "message": "Internal server error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/pasien": {
+      "post": {
+        "tags": [
+          "Pasien"
+        ],
+        "summary": "Tambah pasien",
+        "description": "Membuat pasien baru. Nomor rekam medis (RM-YYYYMMDD-XXXX) dibuat otomatis oleh sistem.",
+        "operationId": "createPasien",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreatePasienDto"
+              },
+              "example": {
+                "namaLengkap": "Budi Santoso",
+                "nik": "3301010101900001",
+                "jenisKelamin": "LAKI_LAKI",
+                "tanggalLahir": "1990-01-01",
+                "alamat": "Jl. Merdeka No. 10, Kota Contoh",
+                "nomorTelepon": "081298765432"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Berhasil",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "Data berhasil dibuat"
+                    },
+                    "statusCode": {
+                      "type": "integer",
+                      "example": 201
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/Pasien"
+                    }
+                  }
+                },
+                "example": {
+                  "success": true,
+                  "message": "Data berhasil dibuat",
+                  "statusCode": 201,
+                  "data": {
+                    "id": "3f2b8c1e-5d4a-4b7e-9c21-8a6f0d1e2b34",
+                    "nomorRekamMedis": "RM-20261112-4821",
+                    "namaLengkap": "Budi Santoso",
+                    "nik": "3301010101900001",
+                    "jenisKelamin": "LAKI_LAKI",
+                    "tanggalLahir": "1990-01-01",
+                    "alamat": "Jl. Merdeka No. 10, Kota Contoh",
+                    "nomorTelepon": "081298765432",
+                    "dibuatPada": "2026-11-12T03:15:30.123Z",
+                    "diperbaruiPada": "2026-11-12T03:15:30.123Z"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Data yang dikirim tidak valid (field kosong, format salah, atau ada field yang tidak dikenal) / Tanggal lahir di masa depan",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "examples": {
+                  "contoh1": {
+                    "summary": "Data yang dikirim tidak valid (field kosong, format salah, atau ada field yang tidak dikenal)",
+                    "value": {
+                      "message": "NIK harus berupa 16 digit angka",
+                      "error": "Bad Request",
+                      "statusCode": 400
+                    }
+                  },
+                  "contoh2": {
+                    "summary": "Tanggal lahir di masa depan",
+                    "value": {
+                      "message": "Tanggal lahir tidak boleh di masa depan",
+                      "error": "Bad Request",
+                      "statusCode": 400
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "NIK sudah terdaftar",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "message": "NIK 3301010101900001 sudah terdaftar",
+                  "error": "Conflict",
+                  "statusCode": 409
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Kesalahan tak terduga di server (mis. database mati)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "statusCode": 500,
+                  "message": "Internal server error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "Pasien"
+        ],
+        "summary": "Lihat semua pasien",
+        "description": "Menampilkan seluruh pasien, yang terbaru didaftarkan berada di atas.",
+        "operationId": "listPasien",
+        "responses": {
+          "200": {
+            "description": "Berhasil",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "Data berhasil diambil"
+                    },
+                    "statusCode": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Pasien"
+                      }
+                    }
+                  }
+                },
+                "example": {
+                  "success": true,
+                  "message": "Data berhasil diambil",
+                  "statusCode": 200,
+                  "data": [
+                    {
+                      "id": "3f2b8c1e-5d4a-4b7e-9c21-8a6f0d1e2b34",
+                      "nomorRekamMedis": "RM-20261112-4821",
+                      "namaLengkap": "Budi Santoso",
+                      "nik": "3301010101900001",
+                      "jenisKelamin": "LAKI_LAKI",
+                      "tanggalLahir": "1990-01-01",
+                      "alamat": "Jl. Merdeka No. 10, Kota Contoh",
+                      "nomorTelepon": "081298765432",
+                      "dibuatPada": "2026-11-12T03:15:30.123Z",
+                      "diperbaruiPada": "2026-11-12T03:15:30.123Z"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Kesalahan tak terduga di server (mis. database mati)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "statusCode": 500,
+                  "message": "Internal server error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/pasien/{id}": {
+      "get": {
+        "tags": [
+          "Pasien"
+        ],
+        "summary": "Lihat satu pasien",
+        "description": "Menampilkan data satu pasien.",
+        "operationId": "getPasien",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "ID pasien (UUID)",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "example": "3f2b8c1e-5d4a-4b7e-9c21-8a6f0d1e2b34"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Berhasil",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "Data berhasil diambil"
+                    },
+                    "statusCode": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/Pasien"
+                    }
+                  }
+                },
+                "example": {
+                  "success": true,
+                  "message": "Data berhasil diambil",
+                  "statusCode": 200,
+                  "data": {
+                    "id": "3f2b8c1e-5d4a-4b7e-9c21-8a6f0d1e2b34",
+                    "nomorRekamMedis": "RM-20261112-4821",
+                    "namaLengkap": "Budi Santoso",
+                    "nik": "3301010101900001",
+                    "jenisKelamin": "LAKI_LAKI",
+                    "tanggalLahir": "1990-01-01",
+                    "alamat": "Jl. Merdeka No. 10, Kota Contoh",
+                    "nomorTelepon": "081298765432",
+                    "dibuatPada": "2026-11-12T03:15:30.123Z",
+                    "diperbaruiPada": "2026-11-12T03:15:30.123Z"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "ID pada URL bukan UUID yang valid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "message": "Validation failed (uuid is expected)",
+                  "error": "Bad Request",
+                  "statusCode": 400
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Pasien dengan ID tersebut tidak ditemukan",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "message": "Pasien 11111111-1111-4111-8111-111111111111 tidak ditemukan",
+                  "error": "Not Found",
+                  "statusCode": 404
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Kesalahan tak terduga di server (mis. database mati)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "statusCode": 500,
+                  "message": "Internal server error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "Pasien"
+        ],
+        "summary": "Ubah pasien",
+        "description": "Mengubah sebagian data pasien. Kirim hanya field yang ingin diubah.",
+        "operationId": "updatePasien",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "ID pasien (UUID)",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "example": "3f2b8c1e-5d4a-4b7e-9c21-8a6f0d1e2b34"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdatePasienDto"
+              },
+              "example": {
+                "alamat": "Jl. Melati No. 5, Kota Contoh"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Berhasil",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "Data berhasil diperbarui"
+                    },
+                    "statusCode": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/Pasien"
+                    }
+                  }
+                },
+                "example": {
+                  "success": true,
+                  "message": "Data berhasil diperbarui",
+                  "statusCode": 200,
+                  "data": {
+                    "id": "3f2b8c1e-5d4a-4b7e-9c21-8a6f0d1e2b34",
+                    "nomorRekamMedis": "RM-20261112-4821",
+                    "namaLengkap": "Budi Santoso",
+                    "nik": "3301010101900001",
+                    "jenisKelamin": "LAKI_LAKI",
+                    "tanggalLahir": "1990-01-01",
+                    "alamat": "Jl. Melati No. 5, Kota Contoh",
+                    "nomorTelepon": "081298765432",
+                    "dibuatPada": "2026-11-12T03:15:30.123Z",
+                    "diperbaruiPada": "2026-11-12T03:15:30.123Z"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "ID pada URL bukan UUID yang valid / Data yang dikirim tidak valid (field kosong, format salah, atau ada field yang tidak dikenal)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "examples": {
+                  "contoh1": {
+                    "summary": "ID pada URL bukan UUID yang valid",
+                    "value": {
+                      "message": "Validation failed (uuid is expected)",
+                      "error": "Bad Request",
+                      "statusCode": 400
+                    }
+                  },
+                  "contoh2": {
+                    "summary": "Data yang dikirim tidak valid (field kosong, format salah, atau ada field yang tidak dikenal)",
+                    "value": {
+                      "message": "NIK harus berupa 16 digit angka",
+                      "error": "Bad Request",
+                      "statusCode": 400
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Pasien dengan ID tersebut tidak ditemukan",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "message": "Pasien 11111111-1111-4111-8111-111111111111 tidak ditemukan",
+                  "error": "Not Found",
+                  "statusCode": 404
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "NIK baru sudah dipakai pasien lain",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "message": "NIK 3301010101900002 sudah terdaftar",
+                  "error": "Conflict",
+                  "statusCode": 409
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Kesalahan tak terduga di server (mis. database mati)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "statusCode": 500,
+                  "message": "Internal server error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Pasien"
+        ],
+        "summary": "Hapus pasien",
+        "description": "Menghapus pasien. Ditolak jika pasien masih memiliki janji temu.",
+        "operationId": "deletePasien",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "ID pasien (UUID)",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "example": "3f2b8c1e-5d4a-4b7e-9c21-8a6f0d1e2b34"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Berhasil",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "Data berhasil dihapus"
+                    },
+                    "statusCode": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/DeleteResult"
+                    }
+                  }
+                },
+                "example": {
+                  "success": true,
+                  "message": "Data berhasil dihapus",
+                  "statusCode": 200,
+                  "data": {
+                    "message": "Pasien 3f2b8c1e-5d4a-4b7e-9c21-8a6f0d1e2b34 berhasil dihapus",
+                    "idTerhapus": "3f2b8c1e-5d4a-4b7e-9c21-8a6f0d1e2b34"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "ID pada URL bukan UUID yang valid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "message": "Validation failed (uuid is expected)",
+                  "error": "Bad Request",
+                  "statusCode": 400
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Pasien dengan ID tersebut tidak ditemukan",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "message": "Pasien 11111111-1111-4111-8111-111111111111 tidak ditemukan",
+                  "error": "Not Found",
+                  "statusCode": 404
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Pasien masih memiliki janji temu",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "message": "Pasien tidak dapat dihapus karena masih memiliki 1 janji temu",
+                  "error": "Conflict",
+                  "statusCode": 409
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Kesalahan tak terduga di server (mis. database mati)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "statusCode": 500,
+                  "message": "Internal server error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/pasien/{id}/janji-temu": {
+      "get": {
+        "tags": [
+          "Pasien"
+        ],
+        "summary": "Lihat janji temu milik pasien",
+        "description": "Menampilkan semua janji temu seorang pasien (terbaru di atas), lengkap dengan data dokter.",
+        "operationId": "listJanjiTemuPasien",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "ID pasien (UUID)",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "example": "3f2b8c1e-5d4a-4b7e-9c21-8a6f0d1e2b34"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Berhasil",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "Data berhasil diambil"
+                    },
+                    "statusCode": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/JanjiTemuDenganDokter"
+                      }
+                    }
+                  }
+                },
+                "example": {
+                  "success": true,
+                  "message": "Data berhasil diambil",
+                  "statusCode": 200,
+                  "data": [
+                    {
+                      "id": "b1a7e5d2-6c3f-4a98-8e14-5d0c9f2a7b61",
+                      "kodeJanjiTemu": "JT-20261112-K7Q2X",
+                      "pasienId": "3f2b8c1e-5d4a-4b7e-9c21-8a6f0d1e2b34",
+                      "dokterId": "9b2d1c4e-3f6a-4d8b-a1c5-2e7f8a9b0c3d",
+                      "jadwal": "2026-11-20T02:00:00.000Z",
+                      "keluhan": "Demam dan batuk sejak tiga hari",
+                      "status": "TERJADWAL",
+                      "alasanPembatalan": null,
+                      "dibuatPada": "2026-11-12T03:15:30.123Z",
+                      "diperbaruiPada": "2026-11-12T03:15:30.123Z",
+                      "dokter": {
+                        "id": "9b2d1c4e-3f6a-4d8b-a1c5-2e7f8a9b0c3d",
+                        "departemenId": "7c9e6679-7425-40de-944b-e07fc1f90ae7",
+                        "namaLengkap": "dr. Andini Pratama",
+                        "nomorStr": "STR-3301-2024-001234",
+                        "spesialisasi": "Dokter Umum",
+                        "email": "andini.pratama@klinik.example",
+                        "nomorTelepon": "081234567890",
+                        "statusAktif": true,
+                        "dibuatPada": "2026-11-12T03:15:30.123Z",
+                        "diperbaruiPada": "2026-11-12T03:15:30.123Z",
+                        "dihapusPada": null
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "ID pada URL bukan UUID yang valid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "message": "Validation failed (uuid is expected)",
+                  "error": "Bad Request",
+                  "statusCode": 400
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Pasien dengan ID tersebut tidak ditemukan",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "message": "Pasien 11111111-1111-4111-8111-111111111111 tidak ditemukan",
+                  "error": "Not Found",
+                  "statusCode": 404
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Kesalahan tak terduga di server (mis. database mati)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "statusCode": 500,
+                  "message": "Internal server error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/janji-temu": {
+      "post": {
+        "tags": [
+          "Janji Temu"
+        ],
+        "summary": "Buat janji temu",
+        "description": "Membuat janji temu antara pasien dan dokter. Status awal selalu TERJADWAL dan kode janji (JT-YYYYMMDD-XXXXX) dibuat otomatis.",
+        "operationId": "createJanjiTemu",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateJanjiTemuDto"
+              },
+              "example": {
+                "pasienId": "3f2b8c1e-5d4a-4b7e-9c21-8a6f0d1e2b34",
+                "dokterId": "9b2d1c4e-3f6a-4d8b-a1c5-2e7f8a9b0c3d",
+                "jadwal": "2026-11-20T09:00:00+07:00",
+                "keluhan": "Demam dan batuk sejak tiga hari"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Berhasil",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "Data berhasil dibuat"
+                    },
+                    "statusCode": {
+                      "type": "integer",
+                      "example": 201
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/JanjiTemuDetail"
+                    }
+                  }
+                },
+                "example": {
+                  "success": true,
+                  "message": "Data berhasil dibuat",
+                  "statusCode": 201,
+                  "data": {
+                    "id": "b1a7e5d2-6c3f-4a98-8e14-5d0c9f2a7b61",
+                    "kodeJanjiTemu": "JT-20261112-K7Q2X",
+                    "pasienId": "3f2b8c1e-5d4a-4b7e-9c21-8a6f0d1e2b34",
+                    "dokterId": "9b2d1c4e-3f6a-4d8b-a1c5-2e7f8a9b0c3d",
+                    "jadwal": "2026-11-20T02:00:00.000Z",
+                    "keluhan": "Demam dan batuk sejak tiga hari",
+                    "status": "TERJADWAL",
+                    "alasanPembatalan": null,
+                    "dibuatPada": "2026-11-12T03:15:30.123Z",
+                    "diperbaruiPada": "2026-11-12T03:15:30.123Z",
+                    "pasien": {
+                      "id": "3f2b8c1e-5d4a-4b7e-9c21-8a6f0d1e2b34",
+                      "nomorRekamMedis": "RM-20261112-4821",
+                      "namaLengkap": "Budi Santoso",
+                      "nik": "3301010101900001",
+                      "jenisKelamin": "LAKI_LAKI",
+                      "tanggalLahir": "1990-01-01",
+                      "alamat": "Jl. Merdeka No. 10, Kota Contoh",
+                      "nomorTelepon": "081298765432",
+                      "dibuatPada": "2026-11-12T03:15:30.123Z",
+                      "diperbaruiPada": "2026-11-12T03:15:30.123Z"
+                    },
+                    "dokter": {
+                      "id": "9b2d1c4e-3f6a-4d8b-a1c5-2e7f8a9b0c3d",
+                      "departemenId": "7c9e6679-7425-40de-944b-e07fc1f90ae7",
+                      "namaLengkap": "dr. Andini Pratama",
+                      "nomorStr": "STR-3301-2024-001234",
+                      "spesialisasi": "Dokter Umum",
+                      "email": "andini.pratama@klinik.example",
+                      "nomorTelepon": "081234567890",
+                      "statusAktif": true,
+                      "dibuatPada": "2026-11-12T03:15:30.123Z",
+                      "diperbaruiPada": "2026-11-12T03:15:30.123Z",
+                      "dihapusPada": null,
+                      "departemen": {
+                        "id": "7c9e6679-7425-40de-944b-e07fc1f90ae7",
+                        "namaDepartemen": "Poli Umum",
+                        "deskripsi": "Layanan pemeriksaan kesehatan umum",
+                        "dibuatPada": "2026-11-12T03:15:30.123Z",
+                        "diperbaruiPada": "2026-11-12T03:15:30.123Z",
+                        "dihapusPada": null
+                      }
+                    },
+                    "rekamMedis": null
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Data tidak valid / jadwal sudah lewat / dokter sedang tidak aktif",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "message": "Jadwal janji temu harus di masa depan",
+                  "error": "Bad Request",
+                  "statusCode": 400
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Pasien atau dokter tidak ditemukan",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "message": "Pasien 11111111-1111-4111-8111-111111111111 tidak ditemukan",
+                  "error": "Not Found",
+                  "statusCode": 404
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Dokter atau pasien sudah punya janji aktif di jadwal yang sama",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "message": "Dokter sudah memiliki janji temu pada jadwal tersebut",
+                  "error": "Conflict",
+                  "statusCode": 409
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Kesalahan tak terduga di server (mis. database mati)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "statusCode": 500,
+                  "message": "Internal server error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "Janji Temu"
+        ],
+        "summary": "Lihat semua janji temu",
+        "description": "Menampilkan seluruh janji temu beserta pasien dan dokter, diurutkan dari jadwal paling awal.",
+        "operationId": "listJanjiTemu",
+        "responses": {
+          "200": {
+            "description": "Berhasil",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "Data berhasil diambil"
+                    },
+                    "statusCode": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/JanjiTemuDenganRelasi"
+                      }
+                    }
+                  }
+                },
+                "example": {
+                  "success": true,
+                  "message": "Data berhasil diambil",
+                  "statusCode": 200,
+                  "data": [
+                    {
+                      "id": "b1a7e5d2-6c3f-4a98-8e14-5d0c9f2a7b61",
+                      "kodeJanjiTemu": "JT-20261112-K7Q2X",
+                      "pasienId": "3f2b8c1e-5d4a-4b7e-9c21-8a6f0d1e2b34",
+                      "dokterId": "9b2d1c4e-3f6a-4d8b-a1c5-2e7f8a9b0c3d",
+                      "jadwal": "2026-11-20T02:00:00.000Z",
+                      "keluhan": "Demam dan batuk sejak tiga hari",
+                      "status": "TERJADWAL",
+                      "alasanPembatalan": null,
+                      "dibuatPada": "2026-11-12T03:15:30.123Z",
+                      "diperbaruiPada": "2026-11-12T03:15:30.123Z",
+                      "pasien": {
+                        "id": "3f2b8c1e-5d4a-4b7e-9c21-8a6f0d1e2b34",
+                        "nomorRekamMedis": "RM-20261112-4821",
+                        "namaLengkap": "Budi Santoso",
+                        "nik": "3301010101900001",
+                        "jenisKelamin": "LAKI_LAKI",
+                        "tanggalLahir": "1990-01-01",
+                        "alamat": "Jl. Merdeka No. 10, Kota Contoh",
+                        "nomorTelepon": "081298765432",
+                        "dibuatPada": "2026-11-12T03:15:30.123Z",
+                        "diperbaruiPada": "2026-11-12T03:15:30.123Z"
+                      },
+                      "dokter": {
+                        "id": "9b2d1c4e-3f6a-4d8b-a1c5-2e7f8a9b0c3d",
+                        "departemenId": "7c9e6679-7425-40de-944b-e07fc1f90ae7",
+                        "namaLengkap": "dr. Andini Pratama",
+                        "nomorStr": "STR-3301-2024-001234",
+                        "spesialisasi": "Dokter Umum",
+                        "email": "andini.pratama@klinik.example",
+                        "nomorTelepon": "081234567890",
+                        "statusAktif": true,
+                        "dibuatPada": "2026-11-12T03:15:30.123Z",
+                        "diperbaruiPada": "2026-11-12T03:15:30.123Z",
+                        "dihapusPada": null
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Kesalahan tak terduga di server (mis. database mati)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "statusCode": 500,
+                  "message": "Internal server error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/janji-temu/{id}": {
+      "get": {
+        "tags": [
+          "Janji Temu"
+        ],
+        "summary": "Lihat satu janji temu",
+        "description": "Menampilkan detail janji temu: pasien, dokter (beserta departemen), dan rekam medis bila sudah ada.",
+        "operationId": "getJanjiTemu",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "ID janji temu (UUID)",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "example": "b1a7e5d2-6c3f-4a98-8e14-5d0c9f2a7b61"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Berhasil",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "Data berhasil diambil"
+                    },
+                    "statusCode": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/JanjiTemuDetail"
+                    }
+                  }
+                },
+                "example": {
+                  "success": true,
+                  "message": "Data berhasil diambil",
+                  "statusCode": 200,
+                  "data": {
+                    "id": "b1a7e5d2-6c3f-4a98-8e14-5d0c9f2a7b61",
+                    "kodeJanjiTemu": "JT-20261112-K7Q2X",
+                    "pasienId": "3f2b8c1e-5d4a-4b7e-9c21-8a6f0d1e2b34",
+                    "dokterId": "9b2d1c4e-3f6a-4d8b-a1c5-2e7f8a9b0c3d",
+                    "jadwal": "2026-11-20T02:00:00.000Z",
+                    "keluhan": "Demam dan batuk sejak tiga hari",
+                    "status": "TERJADWAL",
+                    "alasanPembatalan": null,
+                    "dibuatPada": "2026-11-12T03:15:30.123Z",
+                    "diperbaruiPada": "2026-11-12T03:15:30.123Z",
+                    "pasien": {
+                      "id": "3f2b8c1e-5d4a-4b7e-9c21-8a6f0d1e2b34",
+                      "nomorRekamMedis": "RM-20261112-4821",
+                      "namaLengkap": "Budi Santoso",
+                      "nik": "3301010101900001",
+                      "jenisKelamin": "LAKI_LAKI",
+                      "tanggalLahir": "1990-01-01",
+                      "alamat": "Jl. Merdeka No. 10, Kota Contoh",
+                      "nomorTelepon": "081298765432",
+                      "dibuatPada": "2026-11-12T03:15:30.123Z",
+                      "diperbaruiPada": "2026-11-12T03:15:30.123Z"
+                    },
+                    "dokter": {
+                      "id": "9b2d1c4e-3f6a-4d8b-a1c5-2e7f8a9b0c3d",
+                      "departemenId": "7c9e6679-7425-40de-944b-e07fc1f90ae7",
+                      "namaLengkap": "dr. Andini Pratama",
+                      "nomorStr": "STR-3301-2024-001234",
+                      "spesialisasi": "Dokter Umum",
+                      "email": "andini.pratama@klinik.example",
+                      "nomorTelepon": "081234567890",
+                      "statusAktif": true,
+                      "dibuatPada": "2026-11-12T03:15:30.123Z",
+                      "diperbaruiPada": "2026-11-12T03:15:30.123Z",
+                      "dihapusPada": null,
+                      "departemen": {
+                        "id": "7c9e6679-7425-40de-944b-e07fc1f90ae7",
+                        "namaDepartemen": "Poli Umum",
+                        "deskripsi": "Layanan pemeriksaan kesehatan umum",
+                        "dibuatPada": "2026-11-12T03:15:30.123Z",
+                        "diperbaruiPada": "2026-11-12T03:15:30.123Z",
+                        "dihapusPada": null
+                      }
+                    },
+                    "rekamMedis": null
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "ID pada URL bukan UUID yang valid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "message": "Validation failed (uuid is expected)",
+                  "error": "Bad Request",
+                  "statusCode": 400
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Janji temu dengan ID tersebut tidak ditemukan",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "message": "Janji temu 11111111-1111-4111-8111-111111111111 tidak ditemukan",
+                  "error": "Not Found",
+                  "statusCode": 404
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Kesalahan tak terduga di server (mis. database mati)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "statusCode": 500,
+                  "message": "Internal server error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "Janji Temu"
+        ],
+        "summary": "Ubah janji temu / ubah status",
+        "description": "Satu endpoint untuk dua kebutuhan: (1) mengubah dokter, jadwal, atau keluhan; (2) mengubah status (TERJADWAL → DIKONFIRMASI → SELESAI, atau DIBATALKAN). Pasien tidak bisa diganti.",
+        "operationId": "updateJanjiTemu",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "ID janji temu (UUID)",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "example": "b1a7e5d2-6c3f-4a98-8e14-5d0c9f2a7b61"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateJanjiTemuDto"
+              },
+              "example": {
+                "status": "DIKONFIRMASI"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Berhasil",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "Data berhasil diperbarui"
+                    },
+                    "statusCode": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/JanjiTemuDetail"
+                    }
+                  }
+                },
+                "example": {
+                  "success": true,
+                  "message": "Data berhasil diperbarui",
+                  "statusCode": 200,
+                  "data": {
+                    "id": "b1a7e5d2-6c3f-4a98-8e14-5d0c9f2a7b61",
+                    "kodeJanjiTemu": "JT-20261112-K7Q2X",
+                    "pasienId": "3f2b8c1e-5d4a-4b7e-9c21-8a6f0d1e2b34",
+                    "dokterId": "9b2d1c4e-3f6a-4d8b-a1c5-2e7f8a9b0c3d",
+                    "jadwal": "2026-11-20T02:00:00.000Z",
+                    "keluhan": "Demam dan batuk sejak tiga hari",
+                    "status": "DIKONFIRMASI",
+                    "alasanPembatalan": null,
+                    "dibuatPada": "2026-11-12T03:15:30.123Z",
+                    "diperbaruiPada": "2026-11-12T03:15:30.123Z",
+                    "pasien": {
+                      "id": "3f2b8c1e-5d4a-4b7e-9c21-8a6f0d1e2b34",
+                      "nomorRekamMedis": "RM-20261112-4821",
+                      "namaLengkap": "Budi Santoso",
+                      "nik": "3301010101900001",
+                      "jenisKelamin": "LAKI_LAKI",
+                      "tanggalLahir": "1990-01-01",
+                      "alamat": "Jl. Merdeka No. 10, Kota Contoh",
+                      "nomorTelepon": "081298765432",
+                      "dibuatPada": "2026-11-12T03:15:30.123Z",
+                      "diperbaruiPada": "2026-11-12T03:15:30.123Z"
+                    },
+                    "dokter": {
+                      "id": "9b2d1c4e-3f6a-4d8b-a1c5-2e7f8a9b0c3d",
+                      "departemenId": "7c9e6679-7425-40de-944b-e07fc1f90ae7",
+                      "namaLengkap": "dr. Andini Pratama",
+                      "nomorStr": "STR-3301-2024-001234",
+                      "spesialisasi": "Dokter Umum",
+                      "email": "andini.pratama@klinik.example",
+                      "nomorTelepon": "081234567890",
+                      "statusAktif": true,
+                      "dibuatPada": "2026-11-12T03:15:30.123Z",
+                      "diperbaruiPada": "2026-11-12T03:15:30.123Z",
+                      "dihapusPada": null,
+                      "departemen": {
+                        "id": "7c9e6679-7425-40de-944b-e07fc1f90ae7",
+                        "namaDepartemen": "Poli Umum",
+                        "deskripsi": "Layanan pemeriksaan kesehatan umum",
+                        "dibuatPada": "2026-11-12T03:15:30.123Z",
+                        "diperbaruiPada": "2026-11-12T03:15:30.123Z",
+                        "dihapusPada": null
+                      }
+                    },
+                    "rekamMedis": null
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "ID pada URL bukan UUID yang valid / Data tidak valid / jadwal lewat / dokter nonaktif / pembatalan tanpa alasan / mengirim pasienId",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "examples": {
+                  "contoh1": {
+                    "summary": "ID pada URL bukan UUID yang valid",
+                    "value": {
+                      "message": "Validation failed (uuid is expected)",
+                      "error": "Bad Request",
+                      "statusCode": 400
+                    }
+                  },
+                  "contoh2": {
+                    "summary": "Data tidak valid / jadwal lewat / dokter nonaktif / pembatalan tanpa alasan / mengirim pasienId",
+                    "value": {
+                      "message": "Alasan pembatalan wajib diisi jika status DIBATALKAN",
+                      "error": "Bad Request",
+                      "statusCode": 400
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Janji temu dengan ID tersebut tidak ditemukan",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "message": "Janji temu 11111111-1111-4111-8111-111111111111 tidak ditemukan",
+                  "error": "Not Found",
+                  "statusCode": 404
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Perpindahan status tidak diizinkan, janji sudah SELESAI/DIBATALKAN, atau jadwal bentrok",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "message": "Status tidak dapat diubah dari TERJADWAL ke SELESAI. Perubahan yang diizinkan: DIKONFIRMASI, DIBATALKAN",
+                  "error": "Conflict",
+                  "statusCode": 409
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Kesalahan tak terduga di server (mis. database mati)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "statusCode": 500,
+                  "message": "Internal server error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Janji Temu"
+        ],
+        "summary": "Hapus janji temu",
+        "description": "Menghapus janji temu. Ditolak jika janji temu sudah memiliki rekam medis.",
+        "operationId": "deleteJanjiTemu",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "ID janji temu (UUID)",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "example": "b1a7e5d2-6c3f-4a98-8e14-5d0c9f2a7b61"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Berhasil",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "Data berhasil dihapus"
+                    },
+                    "statusCode": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/DeleteResult"
+                    }
+                  }
+                },
+                "example": {
+                  "success": true,
+                  "message": "Data berhasil dihapus",
+                  "statusCode": 200,
+                  "data": {
+                    "message": "Janji temu b1a7e5d2-6c3f-4a98-8e14-5d0c9f2a7b61 berhasil dihapus",
+                    "idTerhapus": "b1a7e5d2-6c3f-4a98-8e14-5d0c9f2a7b61"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "ID pada URL bukan UUID yang valid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "message": "Validation failed (uuid is expected)",
+                  "error": "Bad Request",
+                  "statusCode": 400
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Janji temu dengan ID tersebut tidak ditemukan",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "message": "Janji temu 11111111-1111-4111-8111-111111111111 tidak ditemukan",
+                  "error": "Not Found",
+                  "statusCode": 404
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Janji temu sudah memiliki rekam medis",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "message": "Janji temu tidak dapat dihapus karena sudah memiliki rekam medis",
+                  "error": "Conflict",
+                  "statusCode": 409
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Kesalahan tak terduga di server (mis. database mati)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "statusCode": 500,
+                  "message": "Internal server error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/janji-temu/{id}/rekam-medis": {
+      "get": {
+        "tags": [
+          "Janji Temu"
+        ],
+        "summary": "Lihat rekam medis dari sebuah janji temu",
+        "description": "Menampilkan catatan kunjungan milik janji temu tersebut.",
+        "operationId": "getRekamMedisByJanji",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "ID janji temu (UUID)",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "example": "b1a7e5d2-6c3f-4a98-8e14-5d0c9f2a7b61"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Berhasil",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "Data berhasil diambil"
+                    },
+                    "statusCode": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/RekamMedis"
+                    }
+                  }
+                },
+                "example": {
+                  "success": true,
+                  "message": "Data berhasil diambil",
+                  "statusCode": 200,
+                  "data": {
+                    "id": "e4c8a2f6-1b5d-4e73-b9a0-6f3d8c1e5a27",
+                    "janjiTemuId": "b1a7e5d2-6c3f-4a98-8e14-5d0c9f2a7b61",
+                    "catatanKunjungan": "Pasien datang dengan keluhan demam dan batuk. Disarankan istirahat cukup dan banyak minum air putih.",
+                    "tindakan": "Observasi dan edukasi istirahat cukup",
+                    "dibuatPada": "2026-11-12T03:15:30.123Z",
+                    "diperbaruiPada": "2026-11-12T03:15:30.123Z"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "ID pada URL bukan UUID yang valid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "message": "Validation failed (uuid is expected)",
+                  "error": "Bad Request",
+                  "statusCode": 400
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Janji temu tidak ada, atau belum memiliki rekam medis",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "message": "Janji temu b1a7e5d2-6c3f-4a98-8e14-5d0c9f2a7b61 belum memiliki rekam medis",
+                  "error": "Not Found",
+                  "statusCode": 404
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Kesalahan tak terduga di server (mis. database mati)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "statusCode": 500,
+                  "message": "Internal server error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/rekam-medis": {
+      "post": {
+        "tags": [
+          "Rekam Medis"
+        ],
+        "summary": "Buat rekam medis (catatan kunjungan)",
+        "description": "Menyimpan catatan kunjungan untuk satu janji temu yang sudah DIKONFIRMASI/SELESAI. Jika status janji masih DIKONFIRMASI, otomatis berubah menjadi SELESAI (dalam satu transaksi database).",
+        "operationId": "createRekamMedis",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateRekamMedisDto"
+              },
+              "example": {
+                "janjiTemuId": "b1a7e5d2-6c3f-4a98-8e14-5d0c9f2a7b61",
+                "catatanKunjungan": "Pasien datang dengan keluhan demam dan batuk. Disarankan istirahat cukup.",
+                "tindakan": "Observasi dan edukasi istirahat cukup"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Berhasil",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "Data berhasil dibuat"
+                    },
+                    "statusCode": {
+                      "type": "integer",
+                      "example": 201
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/RekamMedisDetail"
+                    }
+                  }
+                },
+                "example": {
+                  "success": true,
+                  "message": "Data berhasil dibuat",
+                  "statusCode": 201,
+                  "data": {
+                    "id": "e4c8a2f6-1b5d-4e73-b9a0-6f3d8c1e5a27",
+                    "janjiTemuId": "b1a7e5d2-6c3f-4a98-8e14-5d0c9f2a7b61",
+                    "catatanKunjungan": "Pasien datang dengan keluhan demam dan batuk. Disarankan istirahat cukup dan banyak minum air putih.",
+                    "tindakan": "Observasi dan edukasi istirahat cukup",
+                    "dibuatPada": "2026-11-12T03:15:30.123Z",
+                    "diperbaruiPada": "2026-11-12T03:15:30.123Z",
+                    "janjiTemu": {
+                      "id": "b1a7e5d2-6c3f-4a98-8e14-5d0c9f2a7b61",
+                      "kodeJanjiTemu": "JT-20261112-K7Q2X",
+                      "pasienId": "3f2b8c1e-5d4a-4b7e-9c21-8a6f0d1e2b34",
+                      "dokterId": "9b2d1c4e-3f6a-4d8b-a1c5-2e7f8a9b0c3d",
+                      "jadwal": "2026-11-20T02:00:00.000Z",
+                      "keluhan": "Demam dan batuk sejak tiga hari",
+                      "status": "SELESAI",
+                      "alasanPembatalan": null,
+                      "dibuatPada": "2026-11-12T03:15:30.123Z",
+                      "diperbaruiPada": "2026-11-12T03:15:30.123Z",
+                      "pasien": {
+                        "id": "3f2b8c1e-5d4a-4b7e-9c21-8a6f0d1e2b34",
+                        "nomorRekamMedis": "RM-20261112-4821",
+                        "namaLengkap": "Budi Santoso",
+                        "nik": "3301010101900001",
+                        "jenisKelamin": "LAKI_LAKI",
+                        "tanggalLahir": "1990-01-01",
+                        "alamat": "Jl. Merdeka No. 10, Kota Contoh",
+                        "nomorTelepon": "081298765432",
+                        "dibuatPada": "2026-11-12T03:15:30.123Z",
+                        "diperbaruiPada": "2026-11-12T03:15:30.123Z"
+                      },
+                      "dokter": {
+                        "id": "9b2d1c4e-3f6a-4d8b-a1c5-2e7f8a9b0c3d",
+                        "departemenId": "7c9e6679-7425-40de-944b-e07fc1f90ae7",
+                        "namaLengkap": "dr. Andini Pratama",
+                        "nomorStr": "STR-3301-2024-001234",
+                        "spesialisasi": "Dokter Umum",
+                        "email": "andini.pratama@klinik.example",
+                        "nomorTelepon": "081234567890",
+                        "statusAktif": true,
+                        "dibuatPada": "2026-11-12T03:15:30.123Z",
+                        "diperbaruiPada": "2026-11-12T03:15:30.123Z",
+                        "dihapusPada": null
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Data tidak valid / mengirim field yang tidak dikenal (mis. tekananDarah)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "message": "Catatan kunjungan harus diisi",
+                  "error": "Bad Request",
+                  "statusCode": 400
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Janji temu tidak ditemukan",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "message": "Janji temu 11111111-1111-4111-8111-111111111111 tidak ditemukan",
+                  "error": "Not Found",
+                  "statusCode": 404
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Status janji temu belum DIKONFIRMASI/SELESAI, atau janji temu sudah punya rekam medis",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "message": "Rekam medis hanya dapat dibuat untuk janji temu berstatus DIKONFIRMASI atau SELESAI (status saat ini: TERJADWAL)",
+                  "error": "Conflict",
+                  "statusCode": 409
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Kesalahan tak terduga di server (mis. database mati)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "statusCode": 500,
+                  "message": "Internal server error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "Rekam Medis"
+        ],
+        "summary": "Lihat semua rekam medis",
+        "description": "Menampilkan seluruh rekam medis beserta janji temu, pasien, dan dokternya (terbaru di atas).",
+        "operationId": "listRekamMedis",
+        "responses": {
+          "200": {
+            "description": "Berhasil",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "Data berhasil diambil"
+                    },
+                    "statusCode": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/RekamMedisDetail"
+                      }
+                    }
+                  }
+                },
+                "example": {
+                  "success": true,
+                  "message": "Data berhasil diambil",
+                  "statusCode": 200,
+                  "data": [
+                    {
+                      "id": "e4c8a2f6-1b5d-4e73-b9a0-6f3d8c1e5a27",
+                      "janjiTemuId": "b1a7e5d2-6c3f-4a98-8e14-5d0c9f2a7b61",
+                      "catatanKunjungan": "Pasien datang dengan keluhan demam dan batuk. Disarankan istirahat cukup dan banyak minum air putih.",
+                      "tindakan": "Observasi dan edukasi istirahat cukup",
+                      "dibuatPada": "2026-11-12T03:15:30.123Z",
+                      "diperbaruiPada": "2026-11-12T03:15:30.123Z",
+                      "janjiTemu": {
+                        "id": "b1a7e5d2-6c3f-4a98-8e14-5d0c9f2a7b61",
+                        "kodeJanjiTemu": "JT-20261112-K7Q2X",
+                        "pasienId": "3f2b8c1e-5d4a-4b7e-9c21-8a6f0d1e2b34",
+                        "dokterId": "9b2d1c4e-3f6a-4d8b-a1c5-2e7f8a9b0c3d",
+                        "jadwal": "2026-11-20T02:00:00.000Z",
+                        "keluhan": "Demam dan batuk sejak tiga hari",
+                        "status": "SELESAI",
+                        "alasanPembatalan": null,
+                        "dibuatPada": "2026-11-12T03:15:30.123Z",
+                        "diperbaruiPada": "2026-11-12T03:15:30.123Z",
+                        "pasien": {
+                          "id": "3f2b8c1e-5d4a-4b7e-9c21-8a6f0d1e2b34",
+                          "nomorRekamMedis": "RM-20261112-4821",
+                          "namaLengkap": "Budi Santoso",
+                          "nik": "3301010101900001",
+                          "jenisKelamin": "LAKI_LAKI",
+                          "tanggalLahir": "1990-01-01",
+                          "alamat": "Jl. Merdeka No. 10, Kota Contoh",
+                          "nomorTelepon": "081298765432",
+                          "dibuatPada": "2026-11-12T03:15:30.123Z",
+                          "diperbaruiPada": "2026-11-12T03:15:30.123Z"
+                        },
+                        "dokter": {
+                          "id": "9b2d1c4e-3f6a-4d8b-a1c5-2e7f8a9b0c3d",
+                          "departemenId": "7c9e6679-7425-40de-944b-e07fc1f90ae7",
+                          "namaLengkap": "dr. Andini Pratama",
+                          "nomorStr": "STR-3301-2024-001234",
+                          "spesialisasi": "Dokter Umum",
+                          "email": "andini.pratama@klinik.example",
+                          "nomorTelepon": "081234567890",
+                          "statusAktif": true,
+                          "dibuatPada": "2026-11-12T03:15:30.123Z",
+                          "diperbaruiPada": "2026-11-12T03:15:30.123Z",
+                          "dihapusPada": null
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Kesalahan tak terduga di server (mis. database mati)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "statusCode": 500,
+                  "message": "Internal server error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/rekam-medis/{id}": {
+      "get": {
+        "tags": [
+          "Rekam Medis"
+        ],
+        "summary": "Lihat satu rekam medis",
+        "description": "Menampilkan satu rekam medis beserta janji temu, pasien, dan dokternya.",
+        "operationId": "getRekamMedis",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "ID rekam medis (UUID)",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "example": "e4c8a2f6-1b5d-4e73-b9a0-6f3d8c1e5a27"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Berhasil",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "Data berhasil diambil"
+                    },
+                    "statusCode": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/RekamMedisDetail"
+                    }
+                  }
+                },
+                "example": {
+                  "success": true,
+                  "message": "Data berhasil diambil",
+                  "statusCode": 200,
+                  "data": {
+                    "id": "e4c8a2f6-1b5d-4e73-b9a0-6f3d8c1e5a27",
+                    "janjiTemuId": "b1a7e5d2-6c3f-4a98-8e14-5d0c9f2a7b61",
+                    "catatanKunjungan": "Pasien datang dengan keluhan demam dan batuk. Disarankan istirahat cukup dan banyak minum air putih.",
+                    "tindakan": "Observasi dan edukasi istirahat cukup",
+                    "dibuatPada": "2026-11-12T03:15:30.123Z",
+                    "diperbaruiPada": "2026-11-12T03:15:30.123Z",
+                    "janjiTemu": {
+                      "id": "b1a7e5d2-6c3f-4a98-8e14-5d0c9f2a7b61",
+                      "kodeJanjiTemu": "JT-20261112-K7Q2X",
+                      "pasienId": "3f2b8c1e-5d4a-4b7e-9c21-8a6f0d1e2b34",
+                      "dokterId": "9b2d1c4e-3f6a-4d8b-a1c5-2e7f8a9b0c3d",
+                      "jadwal": "2026-11-20T02:00:00.000Z",
+                      "keluhan": "Demam dan batuk sejak tiga hari",
+                      "status": "SELESAI",
+                      "alasanPembatalan": null,
+                      "dibuatPada": "2026-11-12T03:15:30.123Z",
+                      "diperbaruiPada": "2026-11-12T03:15:30.123Z",
+                      "pasien": {
+                        "id": "3f2b8c1e-5d4a-4b7e-9c21-8a6f0d1e2b34",
+                        "nomorRekamMedis": "RM-20261112-4821",
+                        "namaLengkap": "Budi Santoso",
+                        "nik": "3301010101900001",
+                        "jenisKelamin": "LAKI_LAKI",
+                        "tanggalLahir": "1990-01-01",
+                        "alamat": "Jl. Merdeka No. 10, Kota Contoh",
+                        "nomorTelepon": "081298765432",
+                        "dibuatPada": "2026-11-12T03:15:30.123Z",
+                        "diperbaruiPada": "2026-11-12T03:15:30.123Z"
+                      },
+                      "dokter": {
+                        "id": "9b2d1c4e-3f6a-4d8b-a1c5-2e7f8a9b0c3d",
+                        "departemenId": "7c9e6679-7425-40de-944b-e07fc1f90ae7",
+                        "namaLengkap": "dr. Andini Pratama",
+                        "nomorStr": "STR-3301-2024-001234",
+                        "spesialisasi": "Dokter Umum",
+                        "email": "andini.pratama@klinik.example",
+                        "nomorTelepon": "081234567890",
+                        "statusAktif": true,
+                        "dibuatPada": "2026-11-12T03:15:30.123Z",
+                        "diperbaruiPada": "2026-11-12T03:15:30.123Z",
+                        "dihapusPada": null
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "ID pada URL bukan UUID yang valid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "message": "Validation failed (uuid is expected)",
+                  "error": "Bad Request",
+                  "statusCode": 400
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Rekam medis dengan ID tersebut tidak ditemukan",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "message": "Rekam medis 11111111-1111-4111-8111-111111111111 tidak ditemukan",
+                  "error": "Not Found",
+                  "statusCode": 404
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Kesalahan tak terduga di server (mis. database mati)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "statusCode": 500,
+                  "message": "Internal server error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "Rekam Medis"
+        ],
+        "summary": "Ubah rekam medis",
+        "description": "Mengubah catatan kunjungan atau tindakan. janjiTemuId tidak bisa diganti.",
+        "operationId": "updateRekamMedis",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "ID rekam medis (UUID)",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "example": "e4c8a2f6-1b5d-4e73-b9a0-6f3d8c1e5a27"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateRekamMedisDto"
+              },
+              "example": {
+                "tindakan": "Observasi, istirahat cukup, kontrol ulang bila perlu"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Berhasil",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "Data berhasil diperbarui"
+                    },
+                    "statusCode": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/RekamMedisDetail"
+                    }
+                  }
+                },
+                "example": {
+                  "success": true,
+                  "message": "Data berhasil diperbarui",
+                  "statusCode": 200,
+                  "data": {
+                    "id": "e4c8a2f6-1b5d-4e73-b9a0-6f3d8c1e5a27",
+                    "janjiTemuId": "b1a7e5d2-6c3f-4a98-8e14-5d0c9f2a7b61",
+                    "catatanKunjungan": "Pasien datang dengan keluhan demam dan batuk. Disarankan istirahat cukup dan banyak minum air putih.",
+                    "tindakan": "Observasi, istirahat cukup, kontrol ulang bila perlu",
+                    "dibuatPada": "2026-11-12T03:15:30.123Z",
+                    "diperbaruiPada": "2026-11-12T03:15:30.123Z",
+                    "janjiTemu": {
+                      "id": "b1a7e5d2-6c3f-4a98-8e14-5d0c9f2a7b61",
+                      "kodeJanjiTemu": "JT-20261112-K7Q2X",
+                      "pasienId": "3f2b8c1e-5d4a-4b7e-9c21-8a6f0d1e2b34",
+                      "dokterId": "9b2d1c4e-3f6a-4d8b-a1c5-2e7f8a9b0c3d",
+                      "jadwal": "2026-11-20T02:00:00.000Z",
+                      "keluhan": "Demam dan batuk sejak tiga hari",
+                      "status": "SELESAI",
+                      "alasanPembatalan": null,
+                      "dibuatPada": "2026-11-12T03:15:30.123Z",
+                      "diperbaruiPada": "2026-11-12T03:15:30.123Z",
+                      "pasien": {
+                        "id": "3f2b8c1e-5d4a-4b7e-9c21-8a6f0d1e2b34",
+                        "nomorRekamMedis": "RM-20261112-4821",
+                        "namaLengkap": "Budi Santoso",
+                        "nik": "3301010101900001",
+                        "jenisKelamin": "LAKI_LAKI",
+                        "tanggalLahir": "1990-01-01",
+                        "alamat": "Jl. Merdeka No. 10, Kota Contoh",
+                        "nomorTelepon": "081298765432",
+                        "dibuatPada": "2026-11-12T03:15:30.123Z",
+                        "diperbaruiPada": "2026-11-12T03:15:30.123Z"
+                      },
+                      "dokter": {
+                        "id": "9b2d1c4e-3f6a-4d8b-a1c5-2e7f8a9b0c3d",
+                        "departemenId": "7c9e6679-7425-40de-944b-e07fc1f90ae7",
+                        "namaLengkap": "dr. Andini Pratama",
+                        "nomorStr": "STR-3301-2024-001234",
+                        "spesialisasi": "Dokter Umum",
+                        "email": "andini.pratama@klinik.example",
+                        "nomorTelepon": "081234567890",
+                        "statusAktif": true,
+                        "dibuatPada": "2026-11-12T03:15:30.123Z",
+                        "diperbaruiPada": "2026-11-12T03:15:30.123Z",
+                        "dihapusPada": null
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "ID pada URL bukan UUID yang valid / Data tidak valid / mengirim janjiTemuId atau field tak dikenal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "examples": {
+                  "contoh1": {
+                    "summary": "ID pada URL bukan UUID yang valid",
+                    "value": {
+                      "message": "Validation failed (uuid is expected)",
+                      "error": "Bad Request",
+                      "statusCode": 400
+                    }
+                  },
+                  "contoh2": {
+                    "summary": "Data tidak valid / mengirim janjiTemuId atau field tak dikenal",
+                    "value": {
+                      "message": "property janjiTemuId should not exist",
+                      "error": "Bad Request",
+                      "statusCode": 400
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Rekam medis dengan ID tersebut tidak ditemukan",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "message": "Rekam medis 11111111-1111-4111-8111-111111111111 tidak ditemukan",
+                  "error": "Not Found",
+                  "statusCode": 404
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Kesalahan tak terduga di server (mis. database mati)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "statusCode": 500,
+                  "message": "Internal server error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Rekam Medis"
+        ],
+        "summary": "Hapus rekam medis",
+        "description": "Menghapus rekam medis. Status janji temu tidak ikut berubah.",
+        "operationId": "deleteRekamMedis",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "ID rekam medis (UUID)",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "example": "e4c8a2f6-1b5d-4e73-b9a0-6f3d8c1e5a27"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Berhasil",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "Data berhasil dihapus"
+                    },
+                    "statusCode": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/DeleteResult"
+                    }
+                  }
+                },
+                "example": {
+                  "success": true,
+                  "message": "Data berhasil dihapus",
+                  "statusCode": 200,
+                  "data": {
+                    "message": "Rekam medis e4c8a2f6-1b5d-4e73-b9a0-6f3d8c1e5a27 berhasil dihapus",
+                    "idTerhapus": "e4c8a2f6-1b5d-4e73-b9a0-6f3d8c1e5a27"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "ID pada URL bukan UUID yang valid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "message": "Validation failed (uuid is expected)",
+                  "error": "Bad Request",
+                  "statusCode": 400
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Rekam medis dengan ID tersebut tidak ditemukan",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "message": "Rekam medis 11111111-1111-4111-8111-111111111111 tidak ditemukan",
+                  "error": "Not Found",
+                  "statusCode": 404
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Kesalahan tak terduga di server (mis. database mati)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "statusCode": 500,
+                  "message": "Internal server error"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Departemen": {
+        "type": "object",
+        "description": "Departemen",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "example": "7c9e6679-7425-40de-944b-e07fc1f90ae7"
+          },
+          "namaDepartemen": {
+            "type": "string",
+            "example": "Poli Umum"
+          },
+          "deskripsi": {
+            "type": "string",
+            "example": "Layanan pemeriksaan kesehatan umum"
+          },
+          "dibuatPada": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2026-11-12T03:15:30.123Z"
+          },
+          "diperbaruiPada": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2026-11-12T03:15:30.123Z"
+          },
+          "dihapusPada": {
+            "type": "string",
+            "nullable": true,
+            "example": null
+          }
+        }
+      },
+      "Dokter": {
+        "type": "object",
+        "description": "Dokter",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "example": "9b2d1c4e-3f6a-4d8b-a1c5-2e7f8a9b0c3d"
+          },
+          "departemenId": {
+            "type": "string",
+            "format": "uuid",
+            "example": "7c9e6679-7425-40de-944b-e07fc1f90ae7"
+          },
+          "namaLengkap": {
+            "type": "string",
+            "example": "dr. Andini Pratama"
+          },
+          "nomorStr": {
+            "type": "string",
+            "example": "STR-3301-2024-001234"
+          },
+          "spesialisasi": {
+            "type": "string",
+            "example": "Dokter Umum"
+          },
+          "email": {
+            "type": "string",
+            "example": "andini.pratama@klinik.example"
+          },
+          "nomorTelepon": {
+            "type": "string",
+            "example": "081234567890"
+          },
+          "statusAktif": {
+            "type": "boolean",
+            "example": true
+          },
+          "dibuatPada": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2026-11-12T03:15:30.123Z"
+          },
+          "diperbaruiPada": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2026-11-12T03:15:30.123Z"
+          },
+          "dihapusPada": {
+            "type": "string",
+            "nullable": true,
+            "example": null
+          }
+        }
+      },
+      "Pasien": {
+        "type": "object",
+        "description": "Pasien",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "example": "3f2b8c1e-5d4a-4b7e-9c21-8a6f0d1e2b34"
+          },
+          "nomorRekamMedis": {
+            "type": "string",
+            "example": "RM-20261112-4821"
+          },
+          "namaLengkap": {
+            "type": "string",
+            "example": "Budi Santoso"
+          },
+          "nik": {
+            "type": "string",
+            "example": "3301010101900001"
+          },
+          "jenisKelamin": {
+            "type": "string",
+            "enum": [
+              "LAKI_LAKI",
+              "PEREMPUAN"
+            ],
+            "example": "LAKI_LAKI"
+          },
+          "tanggalLahir": {
+            "type": "string",
+            "format": "date",
+            "example": "1990-01-01"
+          },
+          "alamat": {
+            "type": "string",
+            "example": "Jl. Merdeka No. 10, Kota Contoh"
+          },
+          "nomorTelepon": {
+            "type": "string",
+            "example": "081298765432"
+          },
+          "dibuatPada": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2026-11-12T03:15:30.123Z"
+          },
+          "diperbaruiPada": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2026-11-12T03:15:30.123Z"
+          }
+        }
+      },
+      "JanjiTemu": {
+        "type": "object",
+        "description": "Janji temu",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "example": "b1a7e5d2-6c3f-4a98-8e14-5d0c9f2a7b61"
+          },
+          "kodeJanjiTemu": {
+            "type": "string",
+            "example": "JT-20261112-K7Q2X"
+          },
+          "pasienId": {
+            "type": "string",
+            "format": "uuid",
+            "example": "3f2b8c1e-5d4a-4b7e-9c21-8a6f0d1e2b34"
+          },
+          "dokterId": {
+            "type": "string",
+            "format": "uuid",
+            "example": "9b2d1c4e-3f6a-4d8b-a1c5-2e7f8a9b0c3d"
+          },
+          "jadwal": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2026-11-20T02:00:00.000Z"
+          },
+          "keluhan": {
+            "type": "string",
+            "example": "Demam dan batuk sejak tiga hari"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "TERJADWAL",
+              "DIKONFIRMASI",
+              "SELESAI",
+              "DIBATALKAN"
+            ],
+            "example": "TERJADWAL"
+          },
+          "alasanPembatalan": {
+            "type": "string",
+            "nullable": true,
+            "example": null
+          },
+          "dibuatPada": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2026-11-12T03:15:30.123Z"
+          },
+          "diperbaruiPada": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2026-11-12T03:15:30.123Z"
+          }
+        }
+      },
+      "RekamMedis": {
+        "type": "object",
+        "description": "Rekam medis",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "example": "e4c8a2f6-1b5d-4e73-b9a0-6f3d8c1e5a27"
+          },
+          "janjiTemuId": {
+            "type": "string",
+            "format": "uuid",
+            "example": "b1a7e5d2-6c3f-4a98-8e14-5d0c9f2a7b61"
+          },
+          "catatanKunjungan": {
+            "type": "string",
+            "example": "Pasien datang dengan keluhan demam dan batuk. Disarankan istirahat cukup dan banyak minum air putih."
+          },
+          "tindakan": {
+            "type": "string",
+            "example": "Observasi dan edukasi istirahat cukup",
+            "nullable": true
+          },
+          "dibuatPada": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2026-11-12T03:15:30.123Z"
+          },
+          "diperbaruiPada": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2026-11-12T03:15:30.123Z"
+          }
+        }
+      },
+      "DepartemenDetail": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/Departemen"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "dokter": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/Dokter"
+                }
+              }
+            }
+          }
+        ]
+      },
+      "DokterDetail": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/Dokter"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "departemen": {
+                "$ref": "#/components/schemas/Departemen"
+              }
+            }
+          }
+        ]
+      },
+      "JanjiTemuDenganPasien": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/JanjiTemu"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "pasien": {
+                "$ref": "#/components/schemas/Pasien"
+              }
+            }
+          }
+        ]
+      },
+      "JanjiTemuDenganDokter": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/JanjiTemu"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "dokter": {
+                "$ref": "#/components/schemas/Dokter"
+              }
+            }
+          }
+        ]
+      },
+      "JanjiTemuDenganRelasi": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/JanjiTemu"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "pasien": {
+                "$ref": "#/components/schemas/Pasien"
+              },
+              "dokter": {
+                "$ref": "#/components/schemas/Dokter"
+              }
+            }
+          }
+        ]
+      },
+      "JanjiTemuDetail": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/JanjiTemu"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "pasien": {
+                "$ref": "#/components/schemas/Pasien"
+              },
+              "dokter": {
+                "$ref": "#/components/schemas/DokterDetail"
+              },
+              "rekamMedis": {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/RekamMedis"
+                  }
+                ],
+                "nullable": true
+              }
+            }
+          }
+        ]
+      },
+      "RekamMedisDetail": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/RekamMedis"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "janjiTemu": {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/JanjiTemu"
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "pasien": {
+                        "$ref": "#/components/schemas/Pasien"
+                      },
+                      "dokter": {
+                        "$ref": "#/components/schemas/Dokter"
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        ]
+      },
+      "DeleteResult": {
+        "type": "object",
+        "properties": {
+          "message": {
+            "type": "string",
+            "example": "Pasien 3f2b8c1e-5d4a-4b7e-9c21-8a6f0d1e2b34 berhasil dihapus"
+          },
+          "idTerhapus": {
+            "type": "string",
+            "format": "uuid",
+            "example": "3f2b8c1e-5d4a-4b7e-9c21-8a6f0d1e2b34"
+          }
+        }
+      },
+      "AppInfo": {
+        "type": "object",
+        "properties": {
+          "nama": {
+            "type": "string",
+            "example": "API Clinic Management System"
+          },
+          "versi": {
+            "type": "string",
+            "example": "1.0.0"
+          },
+          "status": {
+            "type": "string",
+            "example": "berjalan"
+          }
+        }
+      },
+      "ErrorResponse": {
+        "type": "object",
+        "description": "Format error bawaan NestJS",
+        "properties": {
+          "message": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            ],
+            "description": "Pesan error; berupa array jika ada beberapa kesalahan validasi"
+          },
+          "error": {
+            "type": "string",
+            "example": "Bad Request"
+          },
+          "statusCode": {
+            "type": "integer",
+            "example": 400
+          }
+        }
+      },
+      "CreatePasienDto": {
+        "type": "object",
+        "properties": {
+          "namaLengkap": {
+            "type": "string",
+            "maxLength": 150,
+            "description": "Wajib diisi, berupa teks, maksimal 150 karakter",
+            "example": "Budi Santoso"
+          },
+          "nik": {
+            "type": "string",
+            "pattern": "^[0-9]{16}$",
+            "description": "Wajib 16 digit angka (NIK fiktif). Harus unik",
+            "example": "3301010101900001"
+          },
+          "jenisKelamin": {
+            "type": "string",
+            "enum": [
+              "LAKI_LAKI",
+              "PEREMPUAN"
+            ],
+            "description": "Salah satu dari LAKI_LAKI atau PEREMPUAN",
+            "example": "LAKI_LAKI"
+          },
+          "tanggalLahir": {
+            "type": "string",
+            "format": "date",
+            "description": "Format tanggal YYYY-MM-DD. Tidak boleh di masa depan",
+            "example": "1990-01-01"
+          },
+          "alamat": {
+            "type": "string",
+            "description": "Wajib diisi, berupa teks",
+            "example": "Jl. Merdeka No. 10, Kota Contoh"
+          },
+          "nomorTelepon": {
+            "type": "string",
+            "pattern": "^(\\+62|62|0)8[0-9]{8,11}$",
+            "description": "Nomor seluler Indonesia, contoh 081298765432 atau +6281298765432",
+            "example": "081298765432"
+          }
+        },
+        "required": [
+          "namaLengkap",
+          "nik",
+          "jenisKelamin",
+          "tanggalLahir",
+          "alamat",
+          "nomorTelepon"
+        ]
+      },
+      "CreateDokterDto": {
+        "type": "object",
+        "properties": {
+          "departemenId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "UUID v4 departemen yang sudah ada",
+            "example": "7c9e6679-7425-40de-944b-e07fc1f90ae7"
+          },
+          "namaLengkap": {
+            "type": "string",
+            "maxLength": 100,
+            "description": "Wajib diisi, maksimal 100 karakter",
+            "example": "dr. Andini Pratama"
+          },
+          "nomorStr": {
+            "type": "string",
+            "maxLength": 30,
+            "description": "Nomor STR (fiktif), maksimal 30 karakter. Harus unik",
+            "example": "STR-3301-2024-001234"
+          },
+          "spesialisasi": {
+            "type": "string",
+            "maxLength": 100,
+            "description": "Wajib diisi, maksimal 100 karakter",
+            "example": "Dokter Umum"
+          },
+          "email": {
+            "type": "string",
+            "format": "email",
+            "maxLength": 100,
+            "description": "Format email valid, maksimal 100 karakter. Harus unik",
+            "example": "andini.pratama@klinik.example"
+          },
+          "nomorTelepon": {
+            "type": "string",
+            "pattern": "^(\\+62|62|0)8[0-9]{8,11}$",
+            "description": "Nomor seluler Indonesia",
+            "example": "081234567890"
+          },
+          "statusAktif": {
+            "type": "boolean",
+            "description": "Opsional. Jika tidak dikirim, otomatis true",
+            "example": true
+          }
+        },
+        "required": [
+          "departemenId",
+          "namaLengkap",
+          "nomorStr",
+          "spesialisasi",
+          "email",
+          "nomorTelepon"
+        ]
+      },
+      "CreateDepartemenDto": {
+        "type": "object",
+        "properties": {
+          "namaDepartemen": {
+            "type": "string",
+            "maxLength": 50,
+            "description": "Wajib diisi, maksimal 50 karakter. Harus unik",
+            "example": "Poli Umum"
+          },
+          "deskripsi": {
+            "type": "string",
+            "description": "Opsional, berupa teks",
+            "example": "Layanan pemeriksaan kesehatan umum"
+          }
+        },
+        "required": [
+          "namaDepartemen"
+        ]
+      },
+      "CreateJanjiTemuDto": {
+        "type": "object",
+        "properties": {
+          "pasienId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "UUID v4 pasien yang sudah ada",
+            "example": "3f2b8c1e-5d4a-4b7e-9c21-8a6f0d1e2b34"
+          },
+          "dokterId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "UUID v4 dokter yang sudah ada dan berstatus aktif",
+            "example": "9b2d1c4e-3f6a-4d8b-a1c5-2e7f8a9b0c3d"
+          },
+          "jadwal": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Tanggal & jam format ISO 8601, harus di masa depan",
+            "example": "2026-11-20T09:00:00+07:00"
+          },
+          "keluhan": {
+            "type": "string",
+            "maxLength": 500,
+            "description": "Wajib diisi, maksimal 500 karakter",
+            "example": "Demam dan batuk sejak tiga hari"
+          }
+        },
+        "required": [
+          "pasienId",
+          "dokterId",
+          "jadwal",
+          "keluhan"
+        ]
+      },
+      "CreateRekamMedisDto": {
+        "type": "object",
+        "properties": {
+          "janjiTemuId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "UUID v4 janji temu berstatus DIKONFIRMASI atau SELESAI",
+            "example": "b1a7e5d2-6c3f-4a98-8e14-5d0c9f2a7b61"
+          },
+          "catatanKunjungan": {
+            "type": "string",
+            "description": "Catatan kunjungan, wajib diisi",
+            "example": "Pasien datang dengan keluhan demam dan batuk. Disarankan istirahat cukup."
+          },
+          "tindakan": {
+            "type": "string",
+            "description": "Opsional. Tindakan umum (bukan diagnosis klinis)",
+            "example": "Observasi dan edukasi istirahat cukup"
+          }
+        },
+        "required": [
+          "janjiTemuId",
+          "catatanKunjungan"
+        ]
+      },
+      "UpdatePasienDto": {
+        "type": "object",
+        "properties": {
+          "namaLengkap": {
+            "type": "string",
+            "maxLength": 150,
+            "description": "Wajib diisi, berupa teks, maksimal 150 karakter",
+            "example": "Budi Santoso"
+          },
+          "nik": {
+            "type": "string",
+            "pattern": "^[0-9]{16}$",
+            "description": "Wajib 16 digit angka (NIK fiktif). Harus unik",
+            "example": "3301010101900001"
+          },
+          "jenisKelamin": {
+            "type": "string",
+            "enum": [
+              "LAKI_LAKI",
+              "PEREMPUAN"
+            ],
+            "description": "Salah satu dari LAKI_LAKI atau PEREMPUAN",
+            "example": "LAKI_LAKI"
+          },
+          "tanggalLahir": {
+            "type": "string",
+            "format": "date",
+            "description": "Format tanggal YYYY-MM-DD. Tidak boleh di masa depan",
+            "example": "1990-01-01"
+          },
+          "alamat": {
+            "type": "string",
+            "description": "Wajib diisi, berupa teks",
+            "example": "Jl. Merdeka No. 10, Kota Contoh"
+          },
+          "nomorTelepon": {
+            "type": "string",
+            "pattern": "^(\\+62|62|0)8[0-9]{8,11}$",
+            "description": "Nomor seluler Indonesia, contoh 081298765432 atau +6281298765432",
+            "example": "081298765432"
+          }
+        }
+      },
+      "UpdateDokterDto": {
+        "type": "object",
+        "properties": {
+          "departemenId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "UUID v4 departemen yang sudah ada",
+            "example": "7c9e6679-7425-40de-944b-e07fc1f90ae7"
+          },
+          "namaLengkap": {
+            "type": "string",
+            "maxLength": 100,
+            "description": "Wajib diisi, maksimal 100 karakter",
+            "example": "dr. Andini Pratama"
+          },
+          "nomorStr": {
+            "type": "string",
+            "maxLength": 30,
+            "description": "Nomor STR (fiktif), maksimal 30 karakter. Harus unik",
+            "example": "STR-3301-2024-001234"
+          },
+          "spesialisasi": {
+            "type": "string",
+            "maxLength": 100,
+            "description": "Wajib diisi, maksimal 100 karakter",
+            "example": "Dokter Umum"
+          },
+          "email": {
+            "type": "string",
+            "format": "email",
+            "maxLength": 100,
+            "description": "Format email valid, maksimal 100 karakter. Harus unik",
+            "example": "andini.pratama@klinik.example"
+          },
+          "nomorTelepon": {
+            "type": "string",
+            "pattern": "^(\\+62|62|0)8[0-9]{8,11}$",
+            "description": "Nomor seluler Indonesia",
+            "example": "081234567890"
+          },
+          "statusAktif": {
+            "type": "boolean",
+            "description": "Opsional. Jika tidak dikirim, otomatis true",
+            "example": true
+          }
+        }
+      },
+      "UpdateDepartemenDto": {
+        "type": "object",
+        "properties": {
+          "namaDepartemen": {
+            "type": "string",
+            "maxLength": 50,
+            "description": "Wajib diisi, maksimal 50 karakter. Harus unik",
+            "example": "Poli Umum"
+          },
+          "deskripsi": {
+            "type": "string",
+            "description": "Opsional, berupa teks",
+            "example": "Layanan pemeriksaan kesehatan umum"
+          }
+        }
+      },
+      "UpdateJanjiTemuDto": {
+        "type": "object",
+        "properties": {
+          "dokterId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "UUID v4 dokter yang sudah ada dan berstatus aktif",
+            "example": "9b2d1c4e-3f6a-4d8b-a1c5-2e7f8a9b0c3d"
+          },
+          "jadwal": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Tanggal & jam format ISO 8601, harus di masa depan",
+            "example": "2026-11-20T09:00:00+07:00"
+          },
+          "keluhan": {
+            "type": "string",
+            "maxLength": 500,
+            "description": "Wajib diisi, maksimal 500 karakter",
+            "example": "Demam dan batuk sejak tiga hari"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "TERJADWAL",
+              "DIKONFIRMASI",
+              "SELESAI",
+              "DIBATALKAN"
+            ],
+            "description": "Status baru. Hanya boleh berpindah sesuai aturan (lihat tabel transisi status)",
+            "example": "DIKONFIRMASI"
+          },
+          "alasanPembatalan": {
+            "type": "string",
+            "description": "Wajib diisi jika status diubah menjadi DIBATALKAN",
+            "example": "Pasien berhalangan hadir"
+          }
+        }
+      },
+      "UpdateRekamMedisDto": {
+        "type": "object",
+        "properties": {
+          "catatanKunjungan": {
+            "type": "string",
+            "description": "Catatan kunjungan, wajib diisi",
+            "example": "Pasien datang dengan keluhan demam dan batuk. Disarankan istirahat cukup."
+          },
+          "tindakan": {
+            "type": "string",
+            "description": "Opsional. Tindakan umum (bukan diagnosis klinis)",
+            "example": "Observasi dan edukasi istirahat cukup"
+          }
+        }
+      }
+    }
+  }
+}
